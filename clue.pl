@@ -44,35 +44,9 @@ rooms(X) :- findall(X0, room(X0), X).
 
 player(0).
 
-players(X) :- findall(X0, player(X0), X).
-
-%-----------------------------------
-
-%prints a list
-printlist([]) :- nl.
-printlist([H | T]) :-
-	write(H), nl,
-	printlist(T).
-
-%prints the entre database 
-printpossible :-
-	write('POSSIBLE KILLERS:'), nl,
-	write('******************'), nl,
-	suspects(S),
-	printlist(S),
-	write('POSSIBLE WEAPONS:'), nl,
-	write('******************'), nl,
-	weapons(W),
-	printlist(W),
-	write('POSSIBLE ROOMS:'), nl,
-	write('******************'), nl,
-	rooms(R),
-	printlist(R).
-
-%remove items from the database
-remove_room(X) :- retract(room(X)).
-remove_suspect(X) :- retract(suspect(X)).
-remove_weapon(X) :- retract(weapon(X)).
+%all the players in a sorted list
+players(Y) :- findall(X0, player(X0), X),
+			  sort(X, Y).
 
 %expects the number of players, including us. 
 %Adds them to the database. 
@@ -81,4 +55,87 @@ gen_players(X) :- Y is X - 1, !,
 				  Y < 6, 
 				  Y > 0, !,
 				  assert(player(Y)),
-				  gen_players(Y).   
+				  gen_players(Y).
+
+%represents the cards a player can have
+%cards are not listed in the possible rooms/weapons/suspects
+:- dynamic card/1.
+
+cards(X) :- findall(X0, card(X0), X).
+
+%relationship of players to cards
+:- dynamic has_card/2.
+
+%resets the database
+clear_all :- abolish(has_card/2),
+			 abolish(card/1),
+			 abolish(player/1),
+			 abolish(room/1),
+			 abolish(suspect/1),
+			 abolish(player/1),
+			 [clue]. % need to reload file.
+%-----------------------------------
+%prints the entire database
+printdatabase :- printpossible,
+				 write('Player info:'), nl,
+				 write('***************'), nl,
+				 printallcards.
+
+
+%prints a list
+printlist([]) :- nl.
+printlist([H | T]) :-
+	write(H), nl,
+	printlist(T).
+
+%prints the possible options for an accusation
+printpossible :-
+	write('Possible killers:'), nl,
+	write('******************'), nl,
+	suspects(S),
+	printlist(S),
+	write('Possible weapons:'), nl,
+	write('******************'), nl,
+	weapons(W),
+	printlist(W),
+	write('Possible rooms:'), nl,
+	write('******************'), nl,
+	rooms(R),
+	printlist(R).
+
+%prints all the known cards
+printallcards :- players(X),
+				 printcardsforplayers(X).
+
+% helper to print cards for every player
+printcardsforplayers([H | T]) :- printcards(H),
+								 printcardsforplayers(T).
+
+%prints the cards for a player
+printcards(P) :- findall(X0, has_card(P, X0), X),
+				 write('Player '), write(P), write(' has:'), nl,
+				 printlist(X).
+
+%remove items from the database
+remove_room(X) :- retract(room(X)).
+remove_suspect(X) :- retract(suspect(X)).
+remove_weapon(X) :- retract(weapon(X)).
+
+%creates card, associates with player and removes card from possible
+setcard(P, X) :- room(X), !,
+				 player(P), !,
+				 remove_room(X),
+				 assert(card(X)),
+				 assert(has_card(P, card(X))).
+setcard(P, X) :- weapon(X), !,
+				 player(P), !,
+				 remove_weapon(X),
+				 assert(card(X)),
+				 assert(has_card(P, card(X))).
+setcard(P, X) :- suspect(X), !,
+				 player(P), !,
+				 remove_suspect(X),
+				 assert(card(X)),
+				 assert(has_card(P, card(X))).
+
+
