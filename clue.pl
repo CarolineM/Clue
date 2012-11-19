@@ -1,6 +1,6 @@
 %Game database
 %-------------------------------
-%suspects
+%possible suspects
 :- dynamic suspect/1.
 
 suspect(mustard).
@@ -12,7 +12,7 @@ suspect(peacock).
 
 suspects(X) :- findall(X0, suspect(X0), X).
 
-%weapons
+%possible weapons
 :- dynamic weapon/1.
 
 weapon(rope).
@@ -24,7 +24,7 @@ weapon(pistol).
 
 weapons(X) :- findall(X0, weapon(X0), X).
 
-%rooms
+%possible rooms
 :- dynamic room/1.
 
 room(kitchen).
@@ -66,6 +66,9 @@ cards(X) :- findall(X0, card(X0), X).
 %relationship of players to cards
 :- dynamic has_card/2.
 
+%relationship of players to question parts
+:- dynamic asked_question/2.
+
 %resets the database
 clear_all :- abolish(has_card/2),
 			 abolish(card/1),
@@ -79,7 +82,7 @@ clear_all :- abolish(has_card/2),
 printdatabase :- printpossible,
 				 write('Player info:'), nl,
 				 write('***************'), nl,
-				 printallcards.
+				 printplayerinfo.
 
 
 %prints a list
@@ -103,18 +106,23 @@ printpossible :-
 	rooms(R),
 	printlist(R).
 
-%prints all the known cards
-printallcards :- players(X),
-				 printcardsforplayers(X).
+%prints all the info known about a player
+printplayerinfo :- players(X),
+				   printinfoforplayers(X).
 
 % helper to print cards for every player
-printcardsforplayers([H | T]) :- printcards(H),
-								 printcardsforplayers(T).
+printinfoforplayers([H | T]) :- printinfo(H),
+								printinfoforplayers(T).
 
 %prints the cards for a player
-printcards(P) :- findall(X0, has_card(P, X0), X),
+printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('Player '), write(P), write(' has:'), nl,
-				 printlist(X).
+				 printlist(X),
+				 write('And asked about:'), nl,
+				 questions_about(P, Q),
+				 filter_relevant(Q, Result),
+				 printlist(Result).
+
 
 %remove items from the database
 remove_room(X) :- retract(room(X)).
@@ -137,5 +145,31 @@ setcard(P, X) :- suspect(X), !,
 				 remove_suspect(X),
 				 assert(card(X)),
 				 assert(has_card(P, card(X))).
+
+%takes one part of the three part question and assocaites 
+%it with the player who asked it. If X is not part of a 
+%possible solution, it is ignored.
+set_question(P, X) :- room(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
+set_question(P, X) :- weapon(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
+set_question(P, X) :- suspect(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
+
+%returns all the items that a specific player asked about
+questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
+
+%filters items in a list based on if they are possible solutions
+filter_relevant([], []) :- !.
+filter_relevant([H | T], [H | Result]) :- room(H), !,
+								          filter_relevant(T, Result).
+filter_relevant([H | T], [H | Result]) :- weapon(H), !,
+								          filter_relevant(T, Result).
+filter_relevant([H | T], [H | Result]) :- suspect(H), !,
+								          filter_relevant(T, Result).
+filter_relevant([_ | T], Result) :- filter_relevant(T, Result).
 
 
