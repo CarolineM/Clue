@@ -48,15 +48,6 @@ player(0).
 players(Y) :- findall(X0, player(X0), X),
 			  sort(X, Y).
 
-%expects the number of players, including us. 
-%Adds them to the database. 
-%Cannot be less than two players.
-gen_players(X) :- Y is X - 1, !,
-				  Y < 6, 
-				  Y > 0, !,
-				  assert(player(Y)),
-				  gen_players(Y).
-
 %represents the cards a player can have
 %cards are not listed in the possible rooms/weapons/suspects
 :- dynamic card/1.
@@ -69,6 +60,14 @@ cards(X) :- findall(X0, card(X0), X).
 %relationship of players to question parts
 :- dynamic asked_question/2.
 
+%returns all the items that a specific player asked about
+questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
+
+%move not possible answers here so they are not lost
+:- dynamic not_possible/1.
+%lists impossible solutions
+impossible(X) :- findall(X0, not_possible(X0), X).
+
 %resets the database
 clear_all :- abolish(has_card/2),
 			 abolish(card/1),
@@ -76,8 +75,65 @@ clear_all :- abolish(has_card/2),
 			 abolish(room/1),
 			 abolish(suspect/1),
 			 abolish(player/1),
+			 abolish(asked_question/2),
+			 abolish(not_possible/1),
 			 [clue]. % need to reload file.
+
+%Database modifiers			 
 %-----------------------------------
+
+%sets the not_possible atom
+set_notpossible(X) :- assert(not_possible(X)).
+
+%expects the number of players, including us. 
+%Adds them to the database. 
+%Cannot be less than two players.
+gen_players(X) :- Y is X - 1, !,
+				  Y < 6, 
+				  Y > 0, !,
+				  assert(player(Y)),
+				  gen_players(Y).
+
+%remove items from the database
+remove_room(X) :- retract(room(X)),
+				  set_notpossible(X).
+remove_suspect(X) :- retract(suspect(X)),
+					 set_notpossible(X).
+remove_weapon(X) :- retract(weapon(X)),
+					set_notpossible(X).
+
+%creates card, associates with player and removes card from possible
+setcard(P, X) :- room(X), !,
+				 player(P), !,
+				 remove_room(X),
+				 assert(card(X)),
+				 assert(has_card(P, card(X))).
+setcard(P, X) :- weapon(X), !,
+				 player(P), !,
+				 remove_weapon(X),
+				 assert(card(X)),
+				 assert(has_card(P, card(X))).
+setcard(P, X) :- suspect(X), !,
+				 player(P), !,
+				 remove_suspect(X),
+				 assert(card(X)),
+				 assert(has_card(P, card(X))).
+
+%takes one part of the three part question and assocaites 
+%it with the player who asked it. If X is not part of a 
+%possible solution, it is ignored.
+set_question(P, X) :- room(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
+set_question(P, X) :- weapon(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
+set_question(P, X) :- suspect(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
+
+%print functions
+%------------------------------------
 %prints the entire database
 printdatabase :- printpossible,
 				 write('Player info:'), nl,
@@ -123,44 +179,8 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 filter_relevant(Q, Result),
 				 printlist(Result).
 
-
-%remove items from the database
-remove_room(X) :- retract(room(X)).
-remove_suspect(X) :- retract(suspect(X)).
-remove_weapon(X) :- retract(weapon(X)).
-
-%creates card, associates with player and removes card from possible
-setcard(P, X) :- room(X), !,
-				 player(P), !,
-				 remove_room(X),
-				 assert(card(X)),
-				 assert(has_card(P, card(X))).
-setcard(P, X) :- weapon(X), !,
-				 player(P), !,
-				 remove_weapon(X),
-				 assert(card(X)),
-				 assert(has_card(P, card(X))).
-setcard(P, X) :- suspect(X), !,
-				 player(P), !,
-				 remove_suspect(X),
-				 assert(card(X)),
-				 assert(has_card(P, card(X))).
-
-%takes one part of the three part question and assocaites 
-%it with the player who asked it. If X is not part of a 
-%possible solution, it is ignored.
-set_question(P, X) :- room(X), !,
-					  player(P), !,
-					  assert(asked_question(P, X)).
-set_question(P, X) :- weapon(X), !,
-					  player(P), !,
-					  assert(asked_question(P, X)).
-set_question(P, X) :- suspect(X), !,
-					  player(P), !,
-					  assert(asked_question(P, X)).
-
-%returns all the items that a specific player asked about
-questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
+%helpers
+%-----------------------------------------------------------
 
 %filters items in a list based on if they are possible solutions
 filter_relevant([], []) :- !.
