@@ -213,12 +213,37 @@ common_questions(P, Result) :- questions_about(P, X),
 
 %lists duplicate items in a list
 %there will be an entry in the list for every item after it appears once
-list_dups([], []).
+list_dups([], []) :- !.
 list_dups([H | T], [H | Result]) :- member(H, T), !,
 									list_dups(T, Result).
 list_dups([_ | T], Result) :- list_dups(T, Result).
 
-%returns a list of cards that have a higher probablity of 
-%being the answer
-high_prob_ans(Result). %TODO
+%returns a list of tuples with a possible [answer, score]
+high_prob_ans(Result) :- players(Y), !,
+						 all_common_q(Y, R),
+						 filter_relevant(R, R1),
+						 build_prob_tuples(R1, R1, R2),
+						 sort(R2, Result).
+
+%returns a list of the questions aked by all players. Ignores rooms.
+all_common_q([], []) :- !.
+all_common_q([H | T], Result) :- questions_about(H, X), !,
+								 filter_room(X, R),
+								 all_common_q(T, R2),
+								 append(R, R2, Result).
+
+%builds a list of tuples of the form [answer, prob].
+build_prob_tuples([], _, []) :- !.
+build_prob_tuples([H | T], L, [[H, Count] | Result]) :- occurrences(L, H, Count), !,
+														build_prob_tuples(T, L, Result).
+										 
+
+% counts the number of occurences of a value in a list
+occurrences(List, Value, Count) :- occurrences(List, Value, 0, Count).
+occurrences([], _, Count, Count).
+occurrences([X | Xs], Value, Acc, Count) :- X == Value, !,
+										    NAcc is Acc + 1, !,
+										    occurrences(Xs, Value, NAcc, Count).
+occurrences([_ | Xs], Value, Acc, Count) :- occurrences(Xs, Value, Acc, Count).
+
 
