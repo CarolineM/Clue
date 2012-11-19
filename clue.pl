@@ -38,6 +38,14 @@ room(conservatory).
 
 rooms(X) :- findall(X0, room(X0), X).
 
+%players are numbers from 0 - 5. 
+%Assumes we are player zero and then counts up going clockwise.
+:- dynamic player/1.
+
+player(0).
+
+players(X) :- findall(X0, player(X0), X).
+
 %-----------------------------------
 
 %prints a list
@@ -64,4 +72,13 @@ printpossible :-
 %remove items from the database
 remove_room(X) :- retract(room(X)).
 remove_suspect(X) :- retract(suspect(X)).
-remove_weapon(X) :- retract(weapon(X)).   
+remove_weapon(X) :- retract(weapon(X)).
+
+%expects the number of players, including us. 
+%Adds them to the database. 
+%Cannot be less than two players.
+gen_players(X) :- Y is X - 1, !,
+				  Y < 6, 
+				  Y > 0, !,
+				  assert(player(Y)),
+				  gen_players(Y).   
