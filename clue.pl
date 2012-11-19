@@ -172,12 +172,17 @@ printinfoforplayers([H | T]) :- printinfo(H),
 
 %prints the cards for a player
 printinfo(P) :- findall(X0, has_card(P, X0), X),
-				 write('Player '), write(P), write(' has:'), nl,
+				 write('Player '), write(P), nl,
+				 write('******************'), nl,
+				 write(' has:'), nl,
 				 printlist(X),
+				 write('And probably does not have:'), nl,
+				 common_questions(P, Y),
+				 printlist(Y),
 				 write('And asked about:'), nl,
 				 questions_about(P, Q),
-				 filter_relevant(Q, Result),
-				 printlist(Result).
+				 printlist(Q).
+
 
 %helpers
 %-----------------------------------------------------------
@@ -192,4 +197,28 @@ filter_relevant([H | T], [H | Result]) :- suspect(H), !,
 								          filter_relevant(T, Result).
 filter_relevant([_ | T], Result) :- filter_relevant(T, Result).
 
+%filters rooms out of a list
+filter_room([], []) :- !.
+filter_room([H | T], Result) :- room(H), !,
+								filter_room(T, Result).
+filter_room([H | T], [H | Result]) :- filter_room(T, Result).
+
+%returns a list of things that a player asked about more than once 
+%that are possible solutions. ignores rooms because asking about a 
+%room depends on board position
+common_questions(P, Result) :- questions_about(P, X),
+							   filter_relevant(X, Y),
+							   filter_room(Y, Z),
+                               list_dups(Z, Result).
+
+%lists duplicate items in a list
+%there will be an entry in the list for every item after it appears once
+list_dups([], []).
+list_dups([H | T], [H | Result]) :- member(H, T), !,
+									list_dups(T, Result).
+list_dups([_ | T], Result) :- list_dups(T, Result).
+
+%returns a list of cards that have a higher probablity of 
+%being the answer
+high_prob_ans(Result). %TODO
 
