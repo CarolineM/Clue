@@ -68,6 +68,12 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 %lists impossible solutions
 impossible(X) :- findall(X0, not_possible(X0), X).
 
+%player has one of 3 cards, based on them showing 
+%something in response to question
+:- dynamic has_one_of/2.
+
+player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
+
 %resets the database
 clear_all :- abolish(has_card/2),
 			 abolish(card/1),
@@ -132,10 +138,23 @@ set_question(P, X) :- suspect(X), !,
 					  player(P), !,
 					  assert(asked_question(P, X)).
 
+%assocaites all the questions with the player who asked and
+%sets the card shower to having one of the three questions ----TODO: case where no one shows.
+set_q_all_rel(P, Q1, Q2, Q3, S) :- player(P), !,
+								   player(S), !,
+								   set_question(P, Q1),
+								   set_question(P, Q2),
+								   set_question(P, Q3),
+								   assert(has_one_of(S, [Q1, Q2, Q3])).
+
+
+
+
 %print functions
 %------------------------------------
 %prints the entire database
 printdatabase :- printpossible,
+				 printprobable,
 				 write('Player info:'), nl,
 				 write('***************'), nl,
 				 printplayerinfo.
@@ -146,6 +165,12 @@ printlist([]) :- nl.
 printlist([H | T]) :-
 	write(H), nl,
 	printlist(T).
+
+printprobable :-
+	write('Probability scores:'), nl,
+	high_prob_ans(Result),
+	printlist(Result).
+
 
 %prints the possible options for an accusation
 printpossible :-
@@ -170,12 +195,17 @@ printplayerinfo :- players(X),
 printinfoforplayers([H | T]) :- printinfo(H),
 								printinfoforplayers(T).
 
-%prints the cards for a player
+%prints all of the info we have about a player
 printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('Player '), write(P), nl,
 				 write('******************'), nl,
-				 write(' has:'), nl,
+				 write('has:'), nl,
 				 printlist(X),
+				 write('has one of each list:'), nl,
+				 player_has_one_of(P, L),
+				 printlist(L),
+				 write('probably has'), nl,
+				 %TODO
 				 write('And probably does not have:'), nl,
 				 common_questions(P, Y),
 				 printlist(Y),
@@ -238,12 +268,14 @@ build_prob_tuples([H | T], L, [[H, Count] | Result]) :- occurrences(L, H, Count)
 														build_prob_tuples(T, L, Result).
 										 
 
-% counts the number of occurences of a value in a list
+%counts the number of occurences of a value in a list
 occurrences(List, Value, Count) :- occurrences(List, Value, 0, Count).
 occurrences([], _, Count, Count).
 occurrences([X | Xs], Value, Acc, Count) :- X == Value, !,
 										    NAcc is Acc + 1, !,
 										    occurrences(Xs, Value, NAcc, Count).
 occurrences([_ | Xs], Value, Acc, Count) :- occurrences(Xs, Value, Acc, Count).
+
+%finds values where the person has shown a card for the same question more than once
 
 
