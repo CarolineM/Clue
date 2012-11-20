@@ -3,38 +3,15 @@
 %possible suspects
 :- dynamic suspect/1.
 
-suspect(mustard).
-suspect(scarlet).
-suspect(plum).
-suspect(green).
-suspect(white).
-suspect(peacock).
-
 suspects(X) :- findall(X0, suspect(X0), X).
 
 %possible weapons
 :- dynamic weapon/1.
 
-weapon(rope).
-weapon(pipe).
-weapon(knife).
-weapon(wrench).
-weapon(candlestick).
-weapon(pistol).
-
 weapons(X) :- findall(X0, weapon(X0), X).
 
 %possible rooms
 :- dynamic room/1.
-
-room(kitchen).
-room(dining).
-room(lounge).
-room(hall).
-room(study).
-room(library).
-room(billiard).
-room(conservatory).
 
 rooms(X) :- findall(X0, room(X0), X).
 
@@ -69,29 +46,146 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 
 player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
+%game playing predicates
+%---------------------------------------------------------
+
 %resets the database
-clear_all :- abolish(has_card/2),
+endgame  :- abolish(has_card/2),
 			 abolish(card/1),
 			 abolish(player/1),
 			 abolish(room/1),
 			 abolish(suspect/1),
+			 abolish(weapon/1),
 			 abolish(player/1),
 			 abolish(asked_question/2),
              abolish(hasoneof/2),
 			 [clue]. % need to reload file.
 
+%builds the database and starts the game sequence
+startgame :- assert(suspect(mustard)),
+			 assert(suspect(scarlet)),
+			 assert(suspect(plum)),
+			 assert(suspect(green)),
+			 assert(suspect(white)),
+			 assert(suspect(peacock)),
+			 assert(weapon(rope)),
+			 assert(weapon(pipe)),
+			 assert(weapon(knife)),
+			 assert(weapon(wrench)),
+			 assert(weapon(candlestick)),
+			 assert(weapon(pistol)),
+			 assert(room(kitchen)),
+			 assert(room(dining)),
+			 assert(room(lounge)),
+			 assert(room(hall)),
+			 assert(room(study)),
+			 assert(room(library)),
+			 assert(room(billiard)),
+			 assert(room(conservatory)),
+			 opening_sequence, !,
+			 ask_cards, !,
+			 start_turn_rotation, !.
+
+%loops on fail
+startgame :- endgame,
+			 startgame.
+
+%sets up the number of players
+opening_sequence :- write('how many players are going to play?'), nl,
+			 		read(X),
+			 		number(X), 
+			 		X < 7, X > 2, 
+			 		gen_players(X), !, 
+			 		Y is X - 1, 
+			 		write('there are players 0 - '), write(Y), write(' in the database'), nl,
+			 		write('you are player 0'), nl,
+			 		write('the other players are numbered clockwise from your current position'), nl.
+
+%fail case
+opening_sequence :- write('please enter an number between 3 and 6'), nl,
+					opening_sequence.
+
+
+%gets player cards
+ask_cards :- write('how many cards do you have?'), nl,
+			 read(X),
+			 number(X), !,
+			 write('here is a list of possible cards:'), nl,
+			 printpossible,
+			 get_cards(X).
+ask_cards :- write('please enter a number'), nl,
+			 ask_cards.
+
+get_cards(0) :- write('your cards are entered in the database'), nl, !.
+get_cards(N) :- write('enter a card:'), nl,
+			    read(Card),
+			    possible(Card), !,
+			    setcard(0, Card), !,
+			    Nn is N - 1, !,
+			    get_cards(Nn).
+get_cards(N) :- write('that was not a possible card.'), nl,
+				get_cards(N).
+
+%gets the starting player and starts the game loop
+start_turn_rotation :- write('who has the first turn?'), nl,
+					   write('turns must move clockwise. because I said so.'), nl,
+					   read(Start),
+					   player(Start), !,
+					   players(X),
+					   length(X, N),
+					   turn_loop(Start, N).
+start_turn_rotation :- write('that is not a valid player. here is a list of players:'), nl,
+					   players(X),
+					   write(X), nl,
+					   start_turn_rotation.
+
+%TODO - can add to this.
+%runs the rest of the game adding values to the database every turn
+turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
+				   write('enter each part of the question that was asked:'), nl,
+				   read(Q0),
+				   all(Q0),
+				   read(Q1),
+				   all(Q1),
+				   read(Q2),
+				   all(Q2),
+				   write('which player showed a card?'), nl,
+				   read(S),
+				   player(S), %TODO no show case
+				   set_q_all_rel(X, Q0, Q1, Q2, S), !,
+				   checkall_has_card, !,
+				   Nx is X + 1, !,
+				   Mx is mod(Nx, L), !,
+				   printdatabase, !, %remove??
+				   turn_loop(Mx, L).
+
+
+turn_loop(_, _) :- write('there was a problem with your input.'), nl,
+                   write('do you want to exit? y/n'), nl,
+                   read(A),
+                   A == 'y',
+				   endgame, !.
+
+turn_loop(X, L) :- turn_loop(X, L).
+
+
+
 %Database modifiers			 
 %-----------------------------------
+%possible answers
+possible(X) :- room(X), !.
+possible(X) :- weapon(X), !.
+possible(X) :- suspect(X), !.
 
-%sets the not_possible atom
-set_notpossible(X) :- assert(not_possible(X)).
+%all
+all(X) :- possible(X), !.
+all(X) :- card(X), !.
 
 %expects the number of players, including us. 
 %Adds them to the database. 
-%Cannot be less than two players.
-gen_players(X) :- Y is X - 1, !,
-				  Y < 6, 
-				  Y > 0, !,
+gen_players(0) :- !.
+gen_players(X) :- Y is X - 1,
+				  Y < 6, !,
 				  assert(player(Y)),
 				  gen_players(Y).
 
@@ -137,12 +231,18 @@ set_question(P, X) :- card(X), !,
 set_q_all_rel(P, Q1, Q2, Q3, S) :- player(P), !,
 								   player(S), !,
 								   set_question(P, Q1),
-								   write('q1'),
 								   set_question(P, Q2),
-								   write('q2'),
 								   set_question(P, Q3),
-								   write('qs set'),
 								   assert(has_one_of(S, [Q1, Q2, Q3])).
+
+checkall_has_card :- players(X),
+					 checkall_has_card(X).
+
+checkall_has_card([]) :- !.
+checkall_has_card([H | T]) :- write('x'), nl, %TODO this is broken
+							  checkall_has_card(H), !,
+							  write('x'), nl,
+							  checkall_has_card(T).
 
 %checks if we can deduce that a player has a card and if we can, add it to the database
 check_has_card(P) :- player(P),
