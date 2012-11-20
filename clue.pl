@@ -63,11 +63,6 @@ cards(X) :- findall(X0, card(X0), X).
 %returns all the items that a specific player asked about
 questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 
-%move not possible answers here so they are not lost
-:- dynamic not_possible/1.
-%lists impossible solutions
-impossible(X) :- findall(X0, not_possible(X0), X).
-
 %player has one of 3 cards, based on them showing 
 %something in response to question
 :- dynamic has_one_of/2.
@@ -82,7 +77,7 @@ clear_all :- abolish(has_card/2),
 			 abolish(suspect/1),
 			 abolish(player/1),
 			 abolish(asked_question/2),
-			 abolish(not_possible/1),
+             abolish(hasoneof/2),
 			 [clue]. % need to reload file.
 
 %Database modifiers			 
@@ -101,12 +96,9 @@ gen_players(X) :- Y is X - 1, !,
 				  gen_players(Y).
 
 %remove items from the database
-remove_room(X) :- retract(room(X)),
-				  set_notpossible(X).
-remove_suspect(X) :- retract(suspect(X)),
-					 set_notpossible(X).
-remove_weapon(X) :- retract(weapon(X)),
-					set_notpossible(X).
+remove_room(X) :- retract(room(X)).
+remove_suspect(X) :- retract(suspect(X)).
+remove_weapon(X) :- retract(weapon(X)).
 
 %creates card, associates with player and removes card from possible
 setcard(P, X) :- room(X), !,
@@ -126,8 +118,7 @@ setcard(P, X) :- suspect(X), !,
 				 assert(has_card(P, card(X))).
 
 %takes one part of the three part question and assocaites 
-%it with the player who asked it. If X is not part of a 
-%possible solution, it is ignored.
+%it with the player who asked it. 
 set_question(P, X) :- room(X), !,
 					  player(P), !,
 					  assert(asked_question(P, X)).
@@ -137,17 +128,40 @@ set_question(P, X) :- weapon(X), !,
 set_question(P, X) :- suspect(X), !,
 					  player(P), !,
 					  assert(asked_question(P, X)).
+set_question(P, X) :- card(X), !,
+					  player(P), !,
+					  assert(asked_question(P, X)).
 
 %assocaites all the questions with the player who asked and
 %sets the card shower to having one of the three questions ----TODO: case where no one shows.
 set_q_all_rel(P, Q1, Q2, Q3, S) :- player(P), !,
 								   player(S), !,
 								   set_question(P, Q1),
+								   write('q1'),
 								   set_question(P, Q2),
+								   write('q2'),
 								   set_question(P, Q3),
+								   write('qs set'),
 								   assert(has_one_of(S, [Q1, Q2, Q3])).
 
+%checks if we can deduce that a player has a card and if we can, add it to the database
+check_has_card(P) :- player(P),
+					 cards(C0), !,
+					 findall(X0, has_card(P, X0), X), !,
+					 subtract(C0, X, C), !,
+					 player_has_one_of(P, L), !,
+					 check_all_hasoneof(L, C, P).
 
+
+%helper to recurse through the hasoneof relationships. stops if a matching sequence is found.
+check_all_hasoneof([], _, _).
+check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | _]), 
+					 			length([H | _], Len),
+					 			Len =:= 1, !,
+					 			write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
+					 			write('It is being added to the database.'), nl,
+					 			setcard(P, H).
+check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P).
 
 
 %print functions
@@ -168,7 +182,7 @@ printlist([H | T]) :-
 
 printprobable :-
 	write('Probability scores:'), nl,
-	high_prob_ans(Result),
+	high_prob_ans(Result), %TODO this is wrong because it is not filtering known cards
 	printlist(Result).
 
 
@@ -204,7 +218,7 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('has one of each list:'), nl,
 				 player_has_one_of(P, L),
 				 printlist(L),
-				 write('probably has'), nl,
+				 write('probably has:'), nl,
 				 %TODO
 				 write('And probably does not have:'), nl,
 				 common_questions(P, Y),
@@ -248,7 +262,7 @@ list_dups([H | T], [H | Result]) :- member(H, T), !,
 									list_dups(T, Result).
 list_dups([_ | T], Result) :- list_dups(T, Result).
 
-%returns a list of tuples with a possible [answer, score]
+%returns a sorted list of tuples with a possible [answer, score]
 high_prob_ans(Result) :- players(Y), !,
 						 all_common_q(Y, R),
 						 filter_relevant(R, R1),
@@ -276,6 +290,6 @@ occurrences([X | Xs], Value, Acc, Count) :- X == Value, !,
 										    occurrences(Xs, Value, NAcc, Count).
 occurrences([_ | Xs], Value, Acc, Count) :- occurrences(Xs, Value, Acc, Count).
 
-%finds values where the person has shown a card for the same question more than once
+
 
 
