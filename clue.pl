@@ -46,6 +46,7 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 
 player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
+
 %TODO: add a 'does not have' predicate based on who doesn't show 
 :- dynamic does_not_have/2.
 
@@ -175,9 +176,17 @@ turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it i
 
 turn_loop(X, L) :- turn_loop(X, L).
 
+% add players who do not have these cards asked by S and shown by E
+players_do_not_have_card(S, E, C1,C2,C3,L):-
+            Sx is S + 1,
+            K is mod(Sx, L),
+            K \= E ,
+            assert(do_not_have(Sx,C1)),
+            assert(do_not_have(Sx, C2)),
+            assert(do_not_have(Sx,C3)),
+            players_do_not_have_card(Sx, E, C1,C2,C3,L).
 
-
-%Database modifiers			 
+%Database modifiers
 %-----------------------------------
 
 %possible answers
