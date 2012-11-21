@@ -60,7 +60,7 @@ endgame  :- abolish(has_card/2),
 			 abolish(weapon/1),
 			 abolish(player/1),
 			 abolish(asked_question/2),
-             abolish(hasoneof/2),
+             abolish(has_one_of/2),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
@@ -129,8 +129,9 @@ get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
 
 %gets the starting player and starts the game loop
+%TODO save current turn as a global variable incase the loop is broken.
 start_turn_rotation :- write('who has the first turn?'), nl,
-					   write('turns must move clockwise. because I said so.'), nl,
+					   write('turns must move clockwise, in order'), nl,
 					   read(Start),
 					   player(Start), !,
 					   players(X),
@@ -249,20 +250,21 @@ checkall_has_card([H | T]) :- check_has_card(H), !,
 check_has_card(P) :- player(P),
 					 cards(C0), !,
 					 findall(X0, has_card(P, X0), X), !,
-					 subtract(C0, X, C), !,
+					 subtract(C0, X, C), !, %set of cards not including players
 					 player_has_one_of(P, L), !,
-					 check_all_hasoneof(L, C, P).
+					 check_all_hasoneof(L, C0, P).
 
 
 %helper to recurse through the hasoneof relationships. stops if a matching sequence is found.
-check_all_hasoneof([], _, _).
-check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | _]), 
-					 			length([H | _], Len),
-					 			Len =:= 1, !,
-					 			write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
-					 			write('It is being added to the database.'), nl,
-					 			setcard(P, H).
-check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P).
+check_all_hasoneof([], _, _) :- !.
+check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | T]),
+					 				 length([H | T], Len),
+					 				 write([H|T]), nl,
+					 				 Len =:= 1, !,
+					 				 write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
+					 				 write('It is being added to the database.'), nl,
+					 				 setcard(P, H).
+check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P), !.
 
 
 %print functions
