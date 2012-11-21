@@ -46,6 +46,8 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 
 player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
+%TODO: add a 'does not have' predicate based on who doesn't show cards
+
 %game playing predicates
 %---------------------------------------------------------
 
@@ -142,8 +144,8 @@ start_turn_rotation :- write('that is not a valid player. here is a list of play
 %TODO - can add to this.
 %runs the rest of the game adding values to the database every turn
 turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
-				   write('enter each part of the question that was asked:'), nl,
-				   read(Q0),
+				   write('enter each part of the question that was asked:'), nl, 
+				   read(Q0), %TODO no question case
 				   all(Q0),
 				   read(Q1),
 				   all(Q1),
@@ -160,7 +162,7 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   turn_loop(Mx, L).
 
 
-turn_loop(_, _) :- write('there was a problem with your input.'), nl,
+turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
                    write('do you want to exit? y/n'), nl,
                    read(A),
                    A == 'y',
@@ -239,12 +241,11 @@ checkall_has_card :- players(X),
 					 checkall_has_card(X).
 
 checkall_has_card([]) :- !.
-checkall_has_card([H | T]) :- write('x'), nl, %TODO this is broken
-							  checkall_has_card(H), !,
-							  write('x'), nl,
+checkall_has_card([H | T]) :- check_has_card(H), !,
 							  checkall_has_card(T).
 
 %checks if we can deduce that a player has a card and if we can, add it to the database
+%TODO this is broken
 check_has_card(P) :- player(P),
 					 cards(C0), !,
 					 findall(X0, has_card(P, X0), X), !,
@@ -275,19 +276,21 @@ printdatabase :- printpossible,
 
 
 %prints a list
-printlist([]) :- nl.
+printlist([]) :- !.
 printlist([H | T]) :-
 	write(H), nl,
 	printlist(T).
 
-printprobable :-
+
+
+printprobable :- 
 	write('Probability scores:'), nl,
 	high_prob_ans(Result), %TODO this is wrong because it is not filtering known cards
-	printlist(Result).
+	printlist(Result), !.
 
 
 %prints the possible options for an accusation
-printpossible :-
+printpossible :- 
 	write('Possible killers:'), nl,
 	write('******************'), nl,
 	suspects(S),
@@ -299,13 +302,14 @@ printpossible :-
 	write('Possible rooms:'), nl,
 	write('******************'), nl,
 	rooms(R),
-	printlist(R).
+	printlist(R), !.
 
 %prints all the info known about a player
 printplayerinfo :- players(X),
-				   printinfoforplayers(X).
+				   printinfoforplayers(X), !.
 
 % helper to print cards for every player
+printinfoforplayers([]) :- !.
 printinfoforplayers([H | T]) :- printinfo(H),
 								printinfoforplayers(T).
 
@@ -325,7 +329,7 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 printlist(Y),
 				 write('And asked about:'), nl,
 				 questions_about(P, Q),
-				 printlist(Q).
+				 printlist(Q), !.
 
 
 %helpers
