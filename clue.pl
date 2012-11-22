@@ -156,7 +156,7 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
 				   player(S), %TODO no show case
 				   set_q_all_rel(X, Q0, Q1, Q2, S), !,
-                   players_do_not_have_card(X, S, Q0, Q1, Q2),
+                   players_do_not_have_card(X, S, Q0, Q1, Q2, L),
 				   checkall_has_card, !,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
