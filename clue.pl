@@ -120,7 +120,7 @@ ask_cards :- write('please enter a number'), nl,
 			 ask_cards.
 
 get_cards(0) :- write('your cards are entered in the database'), nl, !.
-get_cards(N) :- write('enter a card:'), nl,
+get_cards(N) :- nl, write('enter a card:'), nl,
 			    read(Card),
 			    possible(Card), !,
 			    setcard(0, Card), !,
@@ -153,7 +153,7 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   read(Q2),
 				   all(Q2),
 				   write('which player showed a card?'), nl,
-				   read(S),
+				   read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
 				   player(S), %TODO no show case
 				   set_q_all_rel(X, Q0, Q1, Q2, S), !,
                    players_do_not_have_card(X, S, Q0, Q1, Q2),
@@ -288,7 +288,7 @@ printdatabase :- printpossible,
 %prints a list
 printlist([]) :- !.
 printlist([H | T]) :-
-	write(H), nl,
+	write(H), write(', '),
 	printlist(T).
 
 
@@ -300,17 +300,25 @@ printprobable :-
 
 
 %prints the possible options for an accusation
-printpossible :- 
-	write('Possible killers:'), nl,
-	write('******************'), nl,
+printpossible :-nl,
+    write('********************'),nl,
+	write('* Possible killers *'), nl,
+	write('********************'), nl,
+    write('                    '),
 	suspects(S),
 	printlist(S),
-	write('Possible weapons:'), nl,
-	write('******************'), nl,
+    nl,
+    write('********************'),nl,
+	write('* Possible weapons *'), nl,
+	write('********************'), nl,
+    write('                    '),
 	weapons(W),
 	printlist(W),
-	write('Possible rooms:'), nl,
-	write('******************'), nl,
+    nl,
+    write('********************'),nl,
+	write('* Possible rooms   *'), nl,
+	write('********************'), nl,
+    write('                    '),
 	rooms(R),
 	printlist(R), !.
 
