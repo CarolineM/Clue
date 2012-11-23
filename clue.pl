@@ -46,8 +46,14 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 
 player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
-%TODO: add a 'does not have' predicate based on who doesn't show cards
-:- dynamic do_not_have/2.
+
+% 'does not have' predicate based on who doesn't show
+:- dynamic does_not_have/2.
+does_not_have(P, C) :- player(X), has_card(X, C), X \= P.
+player_does_not_have(P, X) :- findall(X0, does_not_have(P, X0), X).
+
+
+
 
 %game playing predicates
 %---------------------------------------------------------
@@ -61,7 +67,8 @@ endgame  :- abolish(has_card/2),
 			 abolish(weapon/1),
 			 abolish(player/1),
 			 abolish(asked_question/2),
-             abolish(hasoneof/2),
+			 abolish(does_not_have/2),
+             abolish(has_one_of/2),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
@@ -130,8 +137,9 @@ get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
 
 %gets the starting player and starts the game loop
+%TODO save current turn as a global variable incase the loop is broken.
 start_turn_rotation :- write('who has the first turn?'), nl,
-					   write('turns must move clockwise. because I said so.'), nl,
+					   write('turns must move clockwise, in order'), nl,
 					   read(Start),
 					   player(Start), !,
 					   players(X),
@@ -155,13 +163,15 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   write('which player showed a card?'), nl,
 				   read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
 				   player(S), %TODO no show case
-				   set_q_all_rel(X, Q0, Q1, Q2, S), !,
-                   players_do_not_have_card(X, S, Q0, Q1, Q2, L),
-				   checkall_has_card, !,
+				   
+				   set_q_all_rel(X, Q0, Q1, Q2, S), !, %set question data
+                    players_do_not_have_card(X, S, Q0, Q1, Q2, L),
+				   checkall_has_card, !, %checks if we can say a player has a card TODO could do more with probablity
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   printdatabase, !, %remove??
 				   turn_loop(Mx, L).
+
 
 
 turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
@@ -181,9 +191,11 @@ players_do_not_have_card(S, E, C1,C2,C3,L):-
             assert(do_not_have(Sx, C2)),
             assert(do_not_have(Sx,C3)),
             players_do_not_have_card(Sx, E, C1,C2,C3,L).
+players_do_not_have_card(S, E, C1,C2,C3,L).
 
 %Database modifiers
 %-----------------------------------
+
 %possible answers
 possible(X) :- room(X), !.
 possible(X) :- weapon(X), !.
@@ -245,7 +257,39 @@ set_q_all_rel(P, Q1, Q2, Q3, S) :- player(P), !,
 								   set_question(P, Q1),
 								   set_question(P, Q2),
 								   set_question(P, Q3),
-								   assert(has_one_of(S, [Q1, Q2, Q3])).
+								   assert(has_one_of(S, [Q1, Q2, Q3])),
+								   set_does_not_have(P, S, [Q1, Q2, Q3]).
+
+set_does_not_have(P, S, _) :- A is abs(P - S), 
+							  A =:= 1, !.
+
+set_does_not_have(P, S, L) :- A is abs(P - S), 
+							  A > 1, !,
+							  cycle_add(P, S, L, A).
+set_does_not_have(P, S, _) :- A is abs(P - S), 
+							  A < 1,
+							  write('error - check set does not have'), !.
+
+cycle_add(_, _, _, 1) :- !.
+cycle_add(P, S, L, A) :- P < S, !,
+						 Na is A - 1,
+						 Np is P + Na,
+						 write('Player '), write(Np), write(' does not have: '), write(L), nl,
+						 assert(does_not_have(Np, L)),
+						 cycle_add(P, S, L, Na).
+cycle_add(P, S, L, A) :- P > S,
+						 Na is A - 1,
+						 Np is P + Na,
+						 player(Np), !,
+						 write('Player '), write(Np), write(' does not have: '), write(L), nl,
+						 assert(does_not_have(Np, L)),
+						 cycle_add(P, S, L, Na).
+cycle_add(P, S, L, A) :- P > S,
+						 Na is A - 1, !,
+						 write('Player '), write(Na), write(' does not have: '), write(L), nl,
+						 assert(does_not_have(Na, L)),
+						 cycle_add(P, S, L, Na).
+
 
 checkall_has_card :- players(X),
 					 checkall_has_card(X).
@@ -255,24 +299,22 @@ checkall_has_card([H | T]) :- check_has_card(H), !,
 							  checkall_has_card(T).
 
 %checks if we can deduce that a player has a card and if we can, add it to the database
-%TODO this is broken
 check_has_card(P) :- player(P),
 					 cards(C0), !,
-					 findall(X0, has_card(P, X0), X), !,
-					 subtract(C0, X, C), !,
 					 player_has_one_of(P, L), !,
-					 check_all_hasoneof(L, C, P).
+					 check_all_hasoneof(L, C0, P).
 
 
 %helper to recurse through the hasoneof relationships. stops if a matching sequence is found.
-check_all_hasoneof([], _, _).
-check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | _]), 
-					 			length([H | _], Len),
-					 			Len =:= 1, !,
-					 			write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
-					 			write('It is being added to the database.'), nl,
-					 			setcard(P, H).
-check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P).
+check_all_hasoneof([], _, _) :- !.
+check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | T]),
+					 				 length([H | T], Len),
+					 				 write([H|T]), nl,
+					 				 Len =:= 1, !,
+					 				 write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
+					 				 write('It is being added to the database.'), nl,
+					 				 setcard(P, H).
+check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P), !.
 
 
 %print functions
@@ -283,7 +325,6 @@ printdatabase :- printpossible,
 				 write('Player info:'), nl,
 				 write('***************'), nl,
 				 printplayerinfo.
-
 
 %prints a list
 printlist([]) :- !.
@@ -337,17 +378,20 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('******************'), nl,
 				 write('has:'), nl,
 				 printlist(X),
-				 write('has one of each list:'), nl,
+				 write('does not have: '),
+				 player_does_not_have(P, Z), nl,
+				 printlist(Z),nl,
+				 write('has one of each list: '),
 				 player_has_one_of(P, L),
-				 printlist(L),
-				 write('probably has:'), nl,
+				 printlist(L),nl,
+				 write('probably has: '),nl,
 				 %TODO
 				 write('And probably does not have:'), nl,
 				 common_questions(P, Y),
 				 printlist(Y),
-				 write('And asked about:'), nl,
+				 write('And asked about:'),
 				 questions_about(P, Q),
-				 printlist(Q), !.
+				 printlist(Q), nl, !.
 
 
 %helpers
