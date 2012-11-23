@@ -163,7 +163,7 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   write('which player showed a card?'), nl,
 				   read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
 				   player(S), %TODO no show case
-				   
+				   on_my_turn(X,S),
 				   set_q_all_rel(X, Q0, Q1, Q2, S), !, %set question data
                     players_do_not_have_card(X, S, Q0, Q1, Q2, L),
 				   checkall_has_card, !, %checks if we can say a player has a card TODO could do more with probablity
@@ -172,6 +172,9 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   printdatabase, !, %remove??
 				   turn_loop(Mx, L).
 
+% on 'my' turn add to the list of cards to player relationships because someone showed a card
+on_my_turn(0,S) :- write('which card?'), read(C), assert(has_card(S,C)).
+on_my_turn(_,_).
 
 
 turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
@@ -187,9 +190,9 @@ players_do_not_have_card(S, E, C1,C2,C3,L):-
             Sx is S + 1,
             K is mod(Sx, L),
             K \= E ,
-            assert(do_not_have(Sx,C1)),
-            assert(do_not_have(Sx, C2)),
-            assert(do_not_have(Sx,C3)),
+            assert(does_not_have(Sx,C1)),
+            assert(does_not_have(Sx, C2)),
+            assert(does_not_have(Sx,C3)),
             players_do_not_have_card(Sx, E, C1,C2,C3,L).
 players_do_not_have_card(S, E, C1,C2,C3,L).
 
@@ -386,10 +389,10 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 printlist(L),nl,
 				 write('probably has: '),nl,
 				 %TODO
-				 write('And probably does not have:'), nl,
+				 write('\nAnd probably does not have:'), 
 				 common_questions(P, Y),
 				 printlist(Y),
-				 write('And asked about:'),
+				 write('\nAnd asked about:'),
 				 questions_about(P, Q),
 				 printlist(Q), nl, !.
 
