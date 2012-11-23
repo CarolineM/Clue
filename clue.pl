@@ -153,24 +153,30 @@ start_turn_rotation :- write('that is not a valid player. here is a list of play
 %TODO - can add to this.
 %runs the rest of the game adding values to the database every turn
 turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
-				   write('enter each part of the question that was asked:'), nl, 
-				   read(Q0), %TODO no question case
-				   all(Q0),
-				   read(Q1),
-				   all(Q1),
-				   read(Q2),
-				   all(Q2),
-				   write('which player showed a card?'), nl,
-				   read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
-				   player(S), %TODO no show case
-				   on_my_turn(X,S),
-				   set_q_all_rel(X, Q0, Q1, Q2, S), !, %set question data
-                    players_do_not_have_card(X, S, Q0, Q1, Q2, L),
+				   write('enter each part of the question that was asked if no question asked, type skip:'), nl,
+                   read(Q0),
+				   read_data(X,L, Q0),
 				   checkall_has_card, !, %checks if we can say a player has a card TODO could do more with probablity
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   printdatabase, !, %remove??
 				   turn_loop(Mx, L).
+
+
+read_data(X, L, 'skip').
+read_data(X, L, Q0) :- %TODO no question case
+                all(Q0),
+                read(Q1),
+                all(Q1),
+                read(Q2),
+                all(Q2),
+                write('which player showed a card?'), nl,
+                read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
+                player(S), %TODO no show case
+                on_my_turn(X,S),
+                set_q_all_rel(X, Q0, Q1, Q2, S), !, %set question data
+                players_do_not_have_card(X, S, Q0, Q1, Q2, L).
+
 
 % on 'my' turn add to the list of cards to player relationships because someone showed a card
 on_my_turn(0,S) :- write('which card?'), read(C), assert(has_card(S,C)).
@@ -378,7 +384,7 @@ printinfoforplayers([H | T]) :- printinfo(H),
 %prints all of the info we have about a player
 printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('Player '), write(P), nl,
-				 write('******************'), nl,
+				 write('*******************************'), nl,
 				 write('has:--------------------------| '),
 				 printlist(X),nl,
 				 write('does not have:----------------| '),
