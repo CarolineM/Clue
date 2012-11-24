@@ -49,7 +49,7 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
 % 'does not have' predicate based on who doesn't show
 :- dynamic does_not_have/2.
-does_not_have(P, C) :- player(X), has_card(X, C), X \= P.
+
 player_does_not_have(P, X) :- findall(X0, does_not_have(P, X0), X).
 
 
@@ -175,7 +175,7 @@ read_data(X, L, Q0) :- %TODO no question case
                 player(S), %TODO no show case
                 on_my_turn(X,S),
                 set_q_all_rel(X, Q0, Q1, Q2, S), !, %set question data
-                players_do_not_have_card(X, S, Q0, Q1, Q2, L).
+                players_do_not_have_card(X, S, Q0, Q1, Q2, L), !.
 
 
 % on 'my' turn add to the list of cards to player relationships because someone showed a card
@@ -195,12 +195,17 @@ turn_loop(X, L) :- turn_loop(X, L).
 players_do_not_have_card(S, E, C1,C2,C3,L):-
             Sx is S + 1,
             K is mod(Sx, L),
-            K \= E ,
-            assert(does_not_have(Sx,C1)),
+            write(K), nl,
+            K \= E , !,
+            assert(does_not_have(Sx, C1)),
             assert(does_not_have(Sx, C2)),
-            assert(does_not_have(Sx,C3)),
-            players_do_not_have_card(Sx, E, C1,C2,C3,L).
-players_do_not_have_card(S, E, C1,C2,C3,L).
+            assert(does_not_have(Sx, C3)),
+            players_do_not_have_card(Sx, E, C1,C2,C3,L), !.
+players_do_not_have_card(S, E, C1,C2,C3,L):-
+            Sx is S + 1,
+            K is mod(Sx, L),
+            K =:= E, !.
+%players_do_not_have_card(S, E, C1,C2,C3,L).
 
 %Database modifiers
 %-----------------------------------
@@ -266,38 +271,7 @@ set_q_all_rel(P, Q1, Q2, Q3, S) :- player(P), !,
 								   set_question(P, Q1),
 								   set_question(P, Q2),
 								   set_question(P, Q3),
-								   assert(has_one_of(S, [Q1, Q2, Q3])),
-								   set_does_not_have(P, S, [Q1, Q2, Q3]).
-
-set_does_not_have(P, S, _) :- A is abs(P - S), 
-							  A =:= 1, !.
-
-set_does_not_have(P, S, L) :- A is abs(P - S), 
-							  A > 1, !,
-							  cycle_add(P, S, L, A).
-set_does_not_have(P, S, _) :- A is abs(P - S), 
-							  A < 1,
-							  write('error - check set does not have'), !.
-
-cycle_add(_, _, _, 1) :- !.
-cycle_add(P, S, L, A) :- P < S, !,
-						 Na is A - 1,
-						 Np is P + Na,
-						 write('Player '), write(Np), write(' does not have: '), write(L), nl,
-						 assert(does_not_have(Np, L)),
-						 cycle_add(P, S, L, Na).
-cycle_add(P, S, L, A) :- P > S,
-						 Na is A - 1,
-						 Np is P + Na,
-						 player(Np), !,
-						 write('Player '), write(Np), write(' does not have: '), write(L), nl,
-						 assert(does_not_have(Np, L)),
-						 cycle_add(P, S, L, Na).
-cycle_add(P, S, L, A) :- P > S,
-						 Na is A - 1, !,
-						 write('Player '), write(Na), write(' does not have: '), write(L), nl,
-						 assert(does_not_have(Na, L)),
-						 cycle_add(P, S, L, Na).
+								   assert(has_one_of(S, [Q1, Q2, Q3])).
 
 
 checkall_has_card :- players(X),
@@ -395,10 +369,10 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 printlist(L),nl,
 				 write('probably has:-----------------| '),nl,
 				 %TODO
-				 write('\nAnd probably does not have--|'),
+				 write('\nAnd probably does not have--| '),
 				 common_questions(P, Y),
 				 printlist(Y), nl,
-				 write('And asked about:--------------|'),
+				 write('And asked about:--------------| '),
 				 questions_about(P, Q),
 				 printlist(Q), nl, !.
 
