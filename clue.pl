@@ -18,7 +18,6 @@ rooms(X) :- findall(X0, room(X0), X).
 %players are numbers from 0 - 5. 
 %Assumes we are player zero and then counts up going clockwise.
 :- dynamic player/1.
-
 player(0).
 
 %all the players in a sorted list
@@ -64,7 +63,7 @@ player_does_not_have(P, Y) :- findall(X0, does_not_have(P, X0), X),
 %---------------------------------------------------------
 
 %resets the database
-endgame  :- abolish(has_card/2),
+endgame  :-  abolish(has_card/2),
 			 abolish(card/1),
 			 abolish(player/1),
 			 abolish(room/1),
@@ -98,7 +97,7 @@ startgame :- assert(suspect(mustard)),
 			 assert(room(billiard)),
 			 assert(room(conservatory)),
 			 opening_sequence, !,
-			 ask_cards, !,
+			 ask_cards, 
 			 start_turn_rotation, !.
 
 %loops on fail
@@ -131,12 +130,12 @@ ask_cards :- write('how many cards do you have?'), nl,
 ask_cards :- write('please enter a number'), nl,
 			 ask_cards.
 
-get_cards(0) :- write('your cards are entered in the database'), nl, !.
+get_cards(0) :- write('your cards are entered in the database'), nl.
 get_cards(N) :- nl, write('enter a card:'), nl,
 			    read(Card),
-			    possible(Card), !,
-			    setcard(0, Card), !,
-			    Nn is N - 1, !,
+			    possible(Card),
+			    setcard(0, Card),
+			    Nn is N - 1,
 			    get_cards(Nn).
 get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
@@ -169,8 +168,8 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
                    write('do you want to exit? y/n'), nl,
                    read(A),
-                   A == 'y',
-				   endgame, !.
+                   A == 'y', !,
+				   endgame.
 
 turn_loop(X, L) :- turn_loop(X, L).
 
@@ -244,17 +243,28 @@ setcard(P, X) :- room(X), !,
 				 player(P), !,
 				 remove_room(X),
 				 assert(card(X)),
-				 assert(has_card(P, card(X))).
+				 assert(has_card(P, card(X))), !,
+				 set_does_not_have_except_p(P, X).
 setcard(P, X) :- weapon(X), !,
 				 player(P), !,
 				 remove_weapon(X),
 				 assert(card(X)),
-				 assert(has_card(P, card(X))).
+				 assert(has_card(P, card(X))), !,
+				 set_does_not_have_except_p(P, X).
 setcard(P, X) :- suspect(X), !,
 				 player(P), !,
 				 remove_suspect(X),
 				 assert(card(X)),
-				 assert(has_card(P, card(X))).
+				 assert(has_card(P, card(X))), !,
+				 set_does_not_have_except_p(P, X).
+
+%sets does not have for all players but P
+set_does_not_have_except_p(P, C) :- players(X), delete(X, P, Y), cycleassert(Y, C).
+
+cycleassert([], _) :- !.
+cycleassert([H | T], C) :- assert(does_not_have(H, C)), !,
+						   cycleassert(T, C).
+
 
 %takes one part of the three part question and assocaites 
 %it with the player who asked it. 
@@ -307,7 +317,7 @@ check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | T]),
 					 				 write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
 					 				 write('It is being added to the database.'), nl,
 					 				 setcard(P, H).
-check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P), !.
+check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P).
 
 
 %print functions
@@ -377,9 +387,7 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('has one of each list:---------| '),
 				 player_has_one_of(P, L),
 				 printlist(L),nl,
-				 write('probably has:-----------------| '),nl,
-				 %TODO
-				 write('\nAnd probably does not have--| '),
+				 write('And probably does not have--| '),
 				 common_questions(P, Y),
 				 printlist(Y), nl,
 				 write('And asked about:--------------| '),
