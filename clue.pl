@@ -76,6 +76,9 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 % 'does not have' predicate based on who doesn't show
 :- dynamic does_not_have/2.
 
+% two players cannot have the same card. there exist a player P such that P does not have C if there exist a player K who has card C, and P and C are not the same..
+does_not_have(P, C) :- player(K), player(P),has_card(K, C), P \=C. 
+
 add_does_not_have(P, C) :- does_not_have(P, C).
 add_does_not_have(P, C) :- assert(does_not_have(P, C)).
 
