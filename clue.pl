@@ -18,7 +18,7 @@ rooms(X) :- findall(X0, room(X0), X).
 %players are numbers from 0 - 5. 
 %Assumes we are player zero and then counts up going clockwise.
 :- dynamic player/1.
-player(0).
+% player(0). unless this is neccessary, because the 'cards no one has' method compares cordinallity of players to the cordinallity of cards that players dont have. having a extra player 0 screws with the comparison.
 
 %all the players in a sorted list
 players(Y) :- findall(X0, player(X0), X),
@@ -52,8 +52,12 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 player_does_not_have(P, Y) :- findall(X0, does_not_have(P, X0), X),
 							  sort(X, Y).
 
-%TODO
+
 % case where does_not_have is true for every player
+no_one_has(X) :- suspect(X),
+                 aggregate_all(count, player(_), Cp),
+                 aggregate_all(count,does_not_have(_, X), C), C =:=Cp.
+cards_no_one_has(X) :- findall(X0, no_one_has(X0), X).
 
 %TODO 
 %checkwin function
