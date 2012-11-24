@@ -1,17 +1,29 @@
 %Game database
 %-------------------------------
+
+% since its possible to have 2 player(0). in the database, use the adders to avoid duplicate
+
 %possible suspects
 :- dynamic suspect/1.
+
+add_suspect(S) :- suspect(S).
+add_suspect(S) :- assert(suspect(S)).
 
 suspects(X) :- findall(X0, suspect(X0), X).
 
 %possible weapons
 :- dynamic weapon/1.
 
+add_weapon(W) :- weapon(W).
+add_weapon(W) :- assert(weapon(W)).
+
 weapons(X) :- findall(X0, weapon(X0), X).
 
 %possible rooms
 :- dynamic room/1.
+
+add_room(R) :- room(R).
+add_room(R) :- assert(room(R)).
 
 rooms(X) :- findall(X0, room(X0), X).
 
@@ -19,6 +31,9 @@ rooms(X) :- findall(X0, room(X0), X).
 %Assumes we are player zero and then counts up going clockwise.
 :- dynamic player/1.
 % player(0). unless this is neccessary, because the 'cards no one has' method compares cordinallity of players to the cordinallity of cards that players dont have. having a extra player 0 screws with the comparison.
+
+add_player(P) :- player(P).
+add_player(P) :- assert(player(P)).
 
 %all the players in a sorted list
 players(Y) :- findall(X0, player(X0), X),
@@ -28,13 +43,22 @@ players(Y) :- findall(X0, player(X0), X),
 %cards are not listed in the possible rooms/weapons/suspects
 :- dynamic card/1.
 
+add_card(C) :- card(C).
+add_card(C) :- assert(card(C)).
+
 cards(X) :- findall(X0, card(X0), X).
 
 %relationship of players to cards
 :- dynamic has_card/2.
 
+add_has_card(C) :- has_card(C).
+add_has_card(C) :- assert(has_card(C)).
+
 %relationship of players to question parts
 :- dynamic asked_question/2.
+
+add_asked_question(P, Q) :- asked_question(P, Q).
+add_asked_question(P, Q) :- assert(asked_question(P, Q)).
 
 %returns all the items that a specific player asked about
 questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
@@ -43,11 +67,17 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 %something in response to question
 :- dynamic has_one_of/2.
 
+add_has_one_of(P, C) :- has_one_of(P, C).
+add_has_one_of(P, C) :- assert(has_one_of(P, C)).
+
 player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
 
 % 'does not have' predicate based on who doesn't show
 :- dynamic does_not_have/2.
+
+add_does_not_have(P, C) :- does_not_have(P, C).
+add_does_not_have(P, C) :- assert(does_not_have(P, C)).
 
 player_does_not_have(P, Y) :- findall(X0, does_not_have(P, X0), X),
 							  sort(X, Y).
@@ -60,6 +90,9 @@ object(X) :- room(X).
 no_one_has(X) :- object(X),
                  aggregate_all(count, player(_), Cp),
                  aggregate_all(count,does_not_have(_, X), C), C =:=Cp.
+
+add_no_one_has(X) :- no_one_has(X).
+add_no_one_has(X) :- assert(no_one_has(X)).
 
 cards_no_one_has(X) :- findall(X0, no_one_has(X0), X).
 
@@ -84,18 +117,18 @@ endgame  :-  abolish(has_card/2),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
-startgame :- assert(suspect(mustard)),
-			 assert(suspect(scarlet)),
-			 assert(suspect(plum)),
-			 assert(suspect(green)),
-			 assert(suspect(white)),
-			 assert(suspect(peacock)),
-			 assert(weapon(rope)),
-			 assert(weapon(pipe)),
-			 assert(weapon(knife)),
-			 assert(weapon(wrench)),
-			 assert(weapon(candlestick)),
-			 assert(weapon(pistol)),
+startgame :- add_suspect(suspect(mustard)),
+			 add_suspect(suspect(scarlet)),
+			 add_suspect(suspect(plum)),
+			 add_suspect(suspect(green)),
+			 add_suspect(suspect(white)),
+			 add_suspect(suspect(peacock)),
+			 add_weapon(weapon(rope)),
+			 add_weapon(weapon(pipe)),
+			 add_weapon(weapon(knife)),
+			 add_weapon(weapon(wrench)),
+			 add_weapon(weapon(candlestick)),
+			 add_weapon(weapon(pistol)),
 			 assert(room(kitchen)),
 			 assert(room(dining)),
 			 assert(room(lounge)),
