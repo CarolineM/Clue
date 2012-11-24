@@ -52,11 +52,15 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 player_does_not_have(P, Y) :- findall(X0, does_not_have(P, X0), X),
 							  sort(X, Y).
 
-
+% definally can use a better name
+object(X) :- weapon(X).
+object(X) :- suspect(X).
+object(X) :- room(X).
 % case where does_not_have is true for every player
-no_one_has(X) :- suspect(X),
+no_one_has(X) :- object(X),
                  aggregate_all(count, player(_), Cp),
                  aggregate_all(count,does_not_have(_, X), C), C =:=Cp.
+
 cards_no_one_has(X) :- findall(X0, no_one_has(X0), X).
 
 %TODO 
