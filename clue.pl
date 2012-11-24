@@ -257,6 +257,7 @@ setcard(P, X) :- suspect(X), !,
 				 assert(card(X)),
 				 assert(has_card(P, card(X))), !,
 				 set_does_not_have_except_p(P, X).
+setcard(_, X) :- card(X), !, write('no card was set because it already exists'), nl.
 
 %sets does not have for all players but P
 set_does_not_have_except_p(P, C) :- players(X), delete(X, P, Y), cycleassert(Y, C).
@@ -310,7 +311,9 @@ check_has_card(P) :- player(P),
 
 %helper to recurse through the hasoneof relationships. stops if a matching sequence is found.
 check_all_hasoneof([], _, _) :- !.
-check_all_hasoneof([X | _], C, P) :- subtract(X, C, [H | T]),
+check_all_hasoneof([X | _], C, P) :- player_does_not_have(P, Nh),
+									 subtract(X, Nh, Y),
+									 subtract(Y, C, [H | T]),
 					 				 length([H | T], Len),
 					 				 write([H|T]), nl,
 					 				 Len =:= 1, !,
