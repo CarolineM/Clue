@@ -50,9 +50,14 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 % 'does not have' predicate based on who doesn't show
 :- dynamic does_not_have/2.
 
-player_does_not_have(P, X) :- findall(X0, does_not_have(P, X0), X).
+player_does_not_have(P, Y) :- findall(X0, does_not_have(P, X0), X),
+							  sort(X, Y).
 
+%TODO
+% case where does_not_have is true for every player
 
+%TODO 
+%checkwin function
 
 
 %game playing predicates
@@ -137,20 +142,20 @@ get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
 
 %gets the starting player and starts the game loop
-%TODO save current turn as a global variable incase the loop is broken.
 start_turn_rotation :- write('who has the first turn?'), nl,
 					   write('turns must move clockwise, in order'), nl,
 					   read(Start),
 					   player(Start), !,
 					   players(X),
 					   length(X, N),
+					   write('have fun! from now on to see what is in the database, type print'), nl,
 					   turn_loop(Start, N).
 start_turn_rotation :- write('that is not a valid player. here is a list of players:'), nl,
 					   players(X),
 					   write(X), nl,
 					   start_turn_rotation.
 
-%TODO - can add to this.
+
 %runs the rest of the game adding values to the database every turn
 turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   write('enter each part of the question that was asked if no question asked, type skip:'), nl,
@@ -159,29 +164,7 @@ turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
 				   checkall_has_card, !, %checks if we can say a player has a card TODO could do more with probablity
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
-				   printdatabase, !, %remove??
 				   turn_loop(Mx, L).
-
-
-read_data(X, L, 'skip').
-read_data(X, L, Q0) :- %TODO no question case
-                all(Q0),
-                read(Q1),
-                all(Q1),
-                read(Q2),
-                all(Q2),
-                write('which player showed a card?'), nl,
-                read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
-                player(S), %TODO no show case
-                on_my_turn(X,S),
-                set_q_all_rel(X, Q0, Q1, Q2, S), !, %set question data
-                players_do_not_have_card(X, S, Q0, Q1, Q2, L), !.
-
-
-% on 'my' turn add to the list of cards to player relationships because someone showed a card
-on_my_turn(0,S) :- write('which card?'), read(C), assert(has_card(S,C)).
-on_my_turn(_,_).
-
 
 turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
                    write('do you want to exit? y/n'), nl,
@@ -191,21 +174,45 @@ turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it i
 
 turn_loop(X, L) :- turn_loop(X, L).
 
+
+read_data(_, _, 'skip').
+read_data(_, _, 'print') :- printdatabase.
+read_data(X, L, Q0) :- 
+                all(Q0),
+                read(Q1),
+                all(Q1),
+                read(Q2),
+                all(Q2),
+                write('which player showed a card?'), nl,
+                read(S), % maybe no show case we can put the person themselves... like.. if player 2 asked, and no one showed, we say player 2 showed a card?.
+                			%that doesn't work because then we will say that player 2 has one of three cards, which is not necessarily true. 
+                			%I think we should just use a constant atom and build that case into the does_not_have setter.
+                player(S), %TODO no show case
+                turn_logic(X, S, Q0, Q1, Q2, L).
+
+%different logic for player zero turn
+turn_logic(0, S, Q0, Q1, Q2, L) :- players_do_not_have_card(0, S, Q0, Q1, Q2, L), !,
+								   write('which card did you see?'), nl,
+								   read(Card),
+                				   set_q_all_rel(Card, S), !.
+turn_logic(X, S, Q0, Q1, Q2, L) :- players_do_not_have_card(X, S, Q0, Q1, Q2, L), !,
+                				   set_q_all_rel(X, Q0, Q1, Q2, S), !.
+
+
 % add players who do not have these cards asked by S and shown by E
 players_do_not_have_card(S, E, C1,C2,C3,L):-
             Sx is S + 1,
             K is mod(Sx, L),
-            write(K), nl,
             K \= E , !,
             assert(does_not_have(Sx, C1)),
             assert(does_not_have(Sx, C2)),
             assert(does_not_have(Sx, C3)),
             players_do_not_have_card(Sx, E, C1,C2,C3,L), !.
-players_do_not_have_card(S, E, C1,C2,C3,L):-
+
+players_do_not_have_card(S, E, _,_,_,L):-
             Sx is S + 1,
             K is mod(Sx, L),
             K =:= E, !.
-%players_do_not_have_card(S, E, C1,C2,C3,L).
 
 %Database modifiers
 %-----------------------------------
@@ -266,6 +273,9 @@ set_question(P, X) :- card(X), !,
 
 %assocaites all the questions with the player who asked and
 %sets the card shower to having one of the three questions ----TODO: case where no one shows.
+set_q_all_rel(Card, S) :- player(S), !,
+					      setcard(S, Card).
+
 set_q_all_rel(P, Q1, Q2, Q3, S) :- player(P), !,
 								   player(S), !,
 								   set_question(P, Q1),
@@ -304,7 +314,7 @@ check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P), !.
 %------------------------------------
 %prints the entire database
 printdatabase :- printpossible,
-				 printprobable,
+				% printprobable,
 				 write('Player info:'), nl,
 				 write('***************'), nl,
 				 printplayerinfo.
