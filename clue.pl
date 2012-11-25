@@ -45,6 +45,8 @@ cards(X) :- findall(X0, card(X0), X).
 %relationship of players to cards
 :- dynamic has_card/2.
 
+player_has_card(P, X) :- findall(X0, has_card(P, X0), X).
+
 %relationship of players to question parts
 :- dynamic asked_question/2.
 
@@ -85,7 +87,7 @@ check_all_noonehas([H | T]) :- check_no_one_has(H), !,
 check_all_noonehas([H | T]) :- not(check_no_one_has(H)), !,
 							   check_all_noonehas(T).
 
-add_no_one_has(X) :- final_answer(X), !.
+add_no_one_has(X) :- add_final_answer(X), !.
 add_no_one_has(X) :- add_final_answer(X),
 					 write('one part of the final answer is: '), write(X), nl, !.
 
@@ -108,6 +110,10 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 					append(R, S, X0),
 					append(X0, W, X).
 
+%TODO - suggestion on finding out if player x has y card
+%TODO - prompt on 3 left per category
+%TODO - add cards per player and then fill does_not_have at max cards
+%TODO - either fix or remove probability
 
 %game playing predicates
 %---------------------------------------------------------
@@ -190,7 +196,8 @@ ask_cards :- write('how many cards do you have?'), nl,
 			 number(X), !,
 			 write('here is a list of possible cards:'), nl,
 			 printpossible,
-			 get_cards(X).
+			 get_cards(X),
+			 setall_doesnothave.
 ask_cards :- write('please enter a number'), nl,
 			 ask_cards.
 
@@ -203,6 +210,14 @@ get_cards(N) :- nl, write('enter a card:'), nl,
 			    get_cards(Nn).
 get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
+
+%sets all the remaining cards to does_not_have for player 0
+setall_doesnothave :- all_possible(X),
+					  setall_doesnothave(X).
+
+setall_doesnothave([]) :- !.
+setall_doesnothave([H | T]) :- add_does_not_have(0, H),
+							   setall_doesnothave(T). 
 
 %gets the starting player and starts the game loop
 start_turn_rotation :- write('who has the first turn?'), nl,
@@ -230,6 +245,7 @@ turn_loop(X, L) :- final_answers(A),
 				   checkall_has_card, !, %checks if we can say a player has a card
 				   all_possible(C),
 				   check_all_noonehas(C), !,
+				   checkoneleft, !,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L).
@@ -272,11 +288,9 @@ players_do_not_have_card(S, E, C1, C2, C3, L):-
             Sx is S + 1,
             K is mod(Sx, L),
             K \= E , !,
-            write('before add..'), nl,
             add_does_not_have(K, C1),
             add_does_not_have(K, C2),
             add_does_not_have(K, C3),
-            write('added does not have'), nl,
             players_do_not_have_card(K, E, C1, C2, C3, L).
 
 players_do_not_have_card(S, E, _,_,_,L):-
@@ -396,6 +410,11 @@ check_has_card(P) :- player(P),
 
 %helper to recurse through the hasoneof relationships. stops if a matching sequence is found.
 check_all_hasoneof([], _, _) :- !.
+check_all_hasoneof([X | T], C, P) :- player_has_card(P, Y),
+									 subtract(X, Y, Z),
+									 length(Z, L),
+									 L < 3, !,
+									 check_all_hasoneof(T, C, P).
 check_all_hasoneof([X | _], C, P) :- player_does_not_have(P, Nh),
 									 subtract(X, Nh, Y),
 									 subtract(Y, C, [H | T]),
@@ -406,6 +425,34 @@ check_all_hasoneof([X | _], C, P) :- player_does_not_have(P, Nh),
 					 				 write('It is being added to the database.'), nl,
 					 				 setcard(P, H).
 check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P).
+
+checkoneleft :- not(final_weapon(_)),
+				weapons(W),
+				length(W, L),
+				L =:= 1,
+				nth0(0, W, I),
+				add_final_answer(I),
+				write('one part of the final answer is: '), write(I), nl.
+
+checkoneleft :- not(final_room(_)),
+				rooms(R),
+				length(R, L),
+				L =:= 1,
+				nth0(0, R, I),
+				add_final_answer(I),
+				write('one part of the final answer is: '), write(I), nl.
+
+checkoneleft :- not(final_suspect(_)),
+				suspects(S),
+				length(S, L),
+				L =:= 1,
+				nth0(0, S, I),
+				add_final_answer(I),
+				write('one part of the final answer is: '), write(I), nl.
+
+checkoneleft :- !.
+
+
 
 
 %print functions
