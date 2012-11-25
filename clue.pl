@@ -206,7 +206,7 @@ turn_loop(X, L) :- final_answers(A),
 				   write('enter each part of the question that was asked if no question asked, type \'skip\':'), nl,
 				   write('to see what is in the database, type \'print\''), nl,
                    read(Q0),
-				   read_data(X,L, Q0),
+				   read_data(X, L, Q0),
 				   checkall_has_card, !, %checks if we can say a player has a card
 				   all_possible(C),
 				   check_all_noonehas(C), !,
@@ -222,9 +222,11 @@ turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it i
 
 turn_loop(X, L) :- turn_loop(X, L).
 
+turn_loop(X, L , 'print') :- turn_loop(X, L).
+
 
 read_data(_, _, 'skip').
-read_data(_, _, 'print') :- printdatabase. %TODO - bug here. this is skipping the turn.
+read_data(X, L, 'print') :- printdatabase, turn_loop(X, L).
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
@@ -457,7 +459,7 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('has one of each list:---------| '),
 				 player_has_one_of(P, L),
 				 printlist(L),nl,
-				 write('And probably does not have--| '),
+				 write('And probably does not have----| '),
 				 common_questions(P, Y),
 				 printlist(Y), nl,
 				 write('And asked about:--------------| '),
