@@ -1,8 +1,6 @@
 %Game database
 %-------------------------------
 
-% since its possible to have 2 player(0). in the database, use the adders to avoid duplicate
-
 %possible suspects
 :- dynamic suspect/1.
 
@@ -22,7 +20,7 @@ weapons(X) :- findall(X0, weapon(X0), X).
 %possible rooms
 :- dynamic room/1.
 
-add_room(R) :- room(R).
+add_room(R) :- room(R), !.
 add_room(R) :- assert(room(R)).
 
 rooms(X) :- findall(X0, room(X0), X).
@@ -30,9 +28,8 @@ rooms(X) :- findall(X0, room(X0), X).
 %players are numbers from 0 - 5. 
 %Assumes we are player zero and then counts up going clockwise.
 :- dynamic player/1.
-% player(0). unless this is neccessary, because the 'cards no one has' method compares cordinallity of players to the cordinallity of cards that players dont have. having a extra player 0 screws with the comparison.
 
-add_player(P) :- player(P).
+add_player(P) :- player(P), !.
 add_player(P) :- assert(player(P)).
 
 %all the players in a sorted list
@@ -43,22 +40,13 @@ players(Y) :- findall(X0, player(X0), X),
 %cards are not listed in the possible rooms/weapons/suspects
 :- dynamic card/1.
 
-add_card(C) :- card(C).
-add_card(C) :- assert(card(C)).
-
 cards(X) :- findall(X0, card(X0), X).
 
 %relationship of players to cards
 :- dynamic has_card/2.
 
-add_has_card(C) :- has_card(C).
-add_has_card(C) :- assert(has_card(C)).
-
 %relationship of players to question parts
 :- dynamic asked_question/2.
-
-add_asked_question(P, Q) :- asked_question(P, Q).
-add_asked_question(P, Q) :- assert(asked_question(P, Q)).
 
 %returns all the items that a specific player asked about
 questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
@@ -67,8 +55,8 @@ questions_about(P, X) :- findall(X0, asked_question(P, X0), X).
 %something in response to question
 :- dynamic has_one_of/2.
 
-add_has_one_of(P, C) :- has_one_of(P, C).
-add_has_one_of(P, C) :- assert(has_one_of(P, C)).
+add_has_one_of(P, C) :- has_one_of(P, C), !.
+add_has_one_of(P, C) :- assert(has_one_of(P, C)), !.
 
 player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 
@@ -76,28 +64,40 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 % 'does not have' predicate based on who doesn't show
 :- dynamic does_not_have/2.
 
-% two players cannot have the same card. there exist a player P such that P does not have C if there exist a player K who has card C, and P and C are not the same..
-does_not_have(P, C) :- player(K), player(P),has_card(K, C), P \=C. 
+% this was causing duplicate entries. just using add_does_not_have everytime is good enough.
+%does_not_have(P, C) :- player(K), player(P),has_card(K, C), P \=K. 
 
-add_does_not_have(P, C) :- does_not_have(P, C).
-add_does_not_have(P, C) :- assert(does_not_have(P, C)).
+add_does_not_have(P, C) :- player(P), all(C), does_not_have(P, C), !.
+add_does_not_have(P, C) :- player(P), all(C), !, assert(does_not_have(P, C)), !.
 
 player_does_not_have(P, Y) :- findall(X0, does_not_have(P, X0), X),
 							  sort(X, Y).
 
-% definally can use a better name
-object(X) :- weapon(X).
-object(X) :- suspect(X).
-object(X) :- room(X).
 % case where does_not_have is true for every player
-no_one_has(X) :- object(X),
-                 aggregate_all(count, player(_), Cp),
-                 aggregate_all(count,does_not_have(_, X), C), C =:=Cp.
+check_no_one_has(X) :- possible(X), !,
+                	   aggregate_all(count, player(_), Cp),
+                 	   aggregate_all(count, does_not_have(_, X), C), C =:= Cp,
+                 	   add_no_one_has(X).
 
-add_no_one_has(X) :- no_one_has(X).
-add_no_one_has(X) :- assert(no_one_has(X)).
+check_all_noonehas([]) :- !.
+check_all_noonehas([H | T]) :- check_no_one_has(H), !,
+							   check_all_noonehas(T).
+check_all_noonehas([H | T]) :- not(check_no_one_has(H)), !,
+							   check_all_noonehas(T).
 
-cards_no_one_has(X) :- findall(X0, no_one_has(X0), X).
+add_no_one_has(X) :- final_answer(X), !.
+add_no_one_has(X) :- add_final_answer(X),
+					 write('one part of the final answer is: '), write(X), nl, !.
+
+
+%when we know for sure a card is part of the answer
+:- dynamic final_answer/1.
+
+add_final_answer(X) :- final_answer(X), !.
+add_final_answer(X) :- assert(final_answer(X)), !.
+
+final_answers(X) :- findall(X0, final_answer(X0), X).
+
 
 %TODO 
 %checkwin function
@@ -117,29 +117,30 @@ endgame  :-  abolish(has_card/2),
 			 abolish(asked_question/2),
 			 abolish(does_not_have/2),
              abolish(has_one_of/2),
+             abolish(final_answer/1),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
-startgame :- add_suspect(suspect(mustard)),
-			 add_suspect(suspect(scarlet)),
-			 add_suspect(suspect(plum)),
-			 add_suspect(suspect(green)),
-			 add_suspect(suspect(white)),
-			 add_suspect(suspect(peacock)),
-			 add_weapon(weapon(rope)),
-			 add_weapon(weapon(pipe)),
-			 add_weapon(weapon(knife)),
-			 add_weapon(weapon(wrench)),
-			 add_weapon(weapon(candlestick)),
-			 add_weapon(weapon(pistol)),
-			 assert(room(kitchen)),
-			 assert(room(dining)),
-			 assert(room(lounge)),
-			 assert(room(hall)),
-			 assert(room(study)),
-			 assert(room(library)),
-			 assert(room(billiard)),
-			 assert(room(conservatory)),
+startgame :- add_suspect(mustard),
+			 add_suspect(scarlet),
+			 add_suspect(plum),
+			 add_suspect(green),
+			 add_suspect(white),
+			 add_suspect(peacock),
+			 add_weapon(rope),
+			 add_weapon(pipe),
+			 add_weapon(knife),
+			 add_weapon(wrench),
+			 add_weapon(candlestick),
+			 add_weapon(pistol),
+			 add_room(kitchen),
+			 add_room(dining),
+			 add_room(lounge),
+			 add_room(hall),
+			 add_room(study),
+			 add_room(library),
+			 add_room(billiard),
+			 add_room(conservatory),
 			 opening_sequence, !,
 			 ask_cards, 
 			 start_turn_rotation, !.
@@ -178,7 +179,7 @@ get_cards(0) :- write('your cards are entered in the database'), nl.
 get_cards(N) :- nl, write('enter a card:'), nl,
 			    read(Card),
 			    possible(Card),
-			    setcard(0, Card),
+			    setcard(0, Card), !,
 			    Nn is N - 1,
 			    get_cards(Nn).
 get_cards(N) :- write('that was not a possible card.'), nl,
@@ -199,12 +200,16 @@ start_turn_rotation :- write('that is not a valid player. here is a list of play
 
 
 %runs the rest of the game adding values to the database every turn
-turn_loop(X, L) :- write('it is player '), write(X), write('s turn'), nl,
+turn_loop(X, L) :- final_answers(A),
+				   printfinal(A),	
+				   write('it is player '), write(X), write('s turn'), nl,
 				   write('enter each part of the question that was asked if no question asked, type \'skip\':'), nl,
 				   write('to see what is in the database, type \'print\''), nl,
                    read(Q0),
 				   read_data(X,L, Q0),
-				   checkall_has_card, !, %checks if we can say a player has a card TODO could do more with probablity
+				   checkall_has_card, !, %checks if we can say a player has a card
+				   all_possible(C),
+				   check_all_noonehas(C), !,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L).
@@ -219,7 +224,7 @@ turn_loop(X, L) :- turn_loop(X, L).
 
 
 read_data(_, _, 'skip').
-read_data(_, _, 'print') :- printdatabase.
+read_data(_, _, 'print') :- printdatabase. %TODO - bug here. this is skipping the turn.
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
@@ -232,7 +237,7 @@ read_data(X, L, Q0) :-
 
 %different logic for player zero turn
 turn_logic(0, S, Q0, Q1, Q2, L) :- players_do_not_have_card(0, S, Q0, Q1, Q2, L), !,
-								   write('which card did you see?'), nl,
+								   write('which card did you see?'), nl, %TODO - case where noone shows on our turn
 								   read(Card),
                 				   set_q_all_rel(Card, S), !.
 turn_logic(X, S, Q0, Q1, Q2, L) :- players_do_not_have_card(X, S, Q0, Q1, Q2, L), !,
@@ -240,18 +245,20 @@ turn_logic(X, S, Q0, Q1, Q2, L) :- players_do_not_have_card(X, S, Q0, Q1, Q2, L)
 
 
 % add players who do not have these cards asked by S and shown by E
-players_do_not_have_card(S, E, C1,C2,C3,L):-
-			player(E), !,
+players_do_not_have_card(S, E, C1, C2, C3, L):-
+			player(E),
             Sx is S + 1,
             K is mod(Sx, L),
             K \= E , !,
-            assert(does_not_have(Sx, C1)),
-            assert(does_not_have(Sx, C2)),
-            assert(does_not_have(Sx, C3)),
-            players_do_not_have_card(Sx, E, C1,C2,C3,L), !.
+            write('before add..'), nl,
+            add_does_not_have(K, C1),
+            add_does_not_have(K, C2),
+            add_does_not_have(K, C3),
+            write('added does not have'), nl,
+            players_do_not_have_card(K, E, C1, C2, C3, L).
 
 players_do_not_have_card(S, E, _,_,_,L):-
-			player(E), !,
+			player(E),
             Sx is S + 1,
             K is mod(Sx, L),
             K =:= E, !.
@@ -262,29 +269,31 @@ players_do_not_have_card(S, 'none', C1,C2,C3,_):-
             cycle_players(Y, C1, C2, C3).
 
 cycle_players([], _, _, _) :- !.
-cycle_players([H | T], Q0, Q1, Q2) :- assert(does_not_have(H, Q0)),
-            					 	  assert(does_not_have(H, Q1)),
-            					 	  assert(does_not_have(H, Q2)),
+cycle_players([H | T], Q0, Q1, Q2) :- add_does_not_have(H, Q0),
+            					 	  add_does_not_have(H, Q1),
+            					 	  add_does_not_have(H, Q2),
             					 	  cycle_players(T, Q0, Q1, Q2).
 
 %Database modifiers
 %-----------------------------------
 
 %possible answers
-possible(X) :- room(X), !.
-possible(X) :- weapon(X), !.
-possible(X) :- suspect(X), !.
+possible(X) :- room(X).
+possible(X) :- weapon(X).
+possible(X) :- suspect(X).
+
+all_possible(X) :- findall(X0, possible(X0), X).
 
 %all
-all(X) :- possible(X), !.
-all(X) :- card(X), !.
+all(X) :- possible(X).
+all(X) :- card(X).
 
 %expects the number of players, including us. 
 %Adds them to the database. 
 gen_players(0) :- !.
 gen_players(X) :- Y is X - 1,
 				  Y < 6, !,
-				  assert(player(Y)),
+				  add_player(Y),
 				  gen_players(Y).
 
 %remove items from the database
@@ -317,7 +326,7 @@ setcard(_, X) :- card(X), !, write('no card was set because it already exists'),
 set_does_not_have_except_p(P, C) :- players(X), delete(X, P, Y), cycleassert(Y, C).
 
 cycleassert([], _) :- !.
-cycleassert([H | T], C) :- assert(does_not_have(H, C)), !,
+cycleassert([H | T], C) :- add_does_not_have(H, C), !,
 						   cycleassert(T, C).
 
 
@@ -384,7 +393,9 @@ printdatabase :- printpossible,
 				% printprobable,
 				 write('Player info:'), nl,
 				 write('***************'), nl,
-				 printplayerinfo.
+				 printplayerinfo, nl,
+				 final_answers(X),
+				 printfinal(X).	
 
 %prints a list
 printlist([]) :- !.
@@ -392,7 +403,9 @@ printlist([H | T]) :-
 	write(H), write(', '),
 	printlist(T).
 
-
+printfinal([]) :- !.
+printfinal(L) :- write('ATTENTION - the following cards are part of the answer:'), nl,
+				 printlist(L), !.
 
 printprobable :- 
 	write('Probability scores:'), nl,
