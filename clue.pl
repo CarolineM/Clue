@@ -91,20 +91,37 @@ add_no_one_has(X) :- add_final_answer(X),
 
 
 %when we know for sure a card is part of the answer
-:- dynamic final_answer/1.
+:- dynamic final_room/1.
+:- dynamic final_weapon/1.
+:- dynamic final_suspect/1.
 
-add_final_answer(X) :- final_answer(X), !.
-add_final_answer(X) :- assert(final_answer(X)), !.
+add_final_answer(X) :- final_room(X), !.
+add_final_answer(X) :- room(X), !, assert(final_room(X)), !.
+add_final_answer(X) :- final_weapon(X), !.
+add_final_answer(X) :- weapon(X), !, assert(final_weapon(X)), !.
+add_final_answer(X) :- final_suspect(X), !.
+add_final_answer(X) :- suspect(X), !, assert(final_suspect(X)), !.
 
-final_answers(X) :- findall(X0, final_answer(X0), X).
-
-
-%TODO 
-%checkwin function
+final_answers(X) :- findall(R0, final_room(R0), R), 
+					findall(S0, final_suspect(S0), S),
+					findall(W0, final_weapon(W0), W),
+					append(R, S, X0),
+					append(X0, W, X).
 
 
 %game playing predicates
 %---------------------------------------------------------
+checkwin :- final_answers(X),
+			length(X, L),
+			L =:= 3,
+			final_room(R),
+			final_suspect(S),
+			final_weapon(W),
+			write('*************************************************'), nl,
+			write(S), write(' did it, in the '), write(R), write(' with the '), write(W), write('!'), nl,
+			write('*************************************************'), nl.
+
+checkwin :- !.	
 
 %resets the database
 endgame  :-  abolish(has_card/2),
@@ -117,7 +134,9 @@ endgame  :-  abolish(has_card/2),
 			 abolish(asked_question/2),
 			 abolish(does_not_have/2),
              abolish(has_one_of/2),
-             abolish(final_answer/1),
+             abolish(final_room/1),
+             abolish(final_weapon/1),
+             abolish(final_suspect/1),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
@@ -205,6 +224,7 @@ turn_loop(X, L) :- final_answers(A),
 				   write('it is player '), write(X), write('s turn'), nl,
 				   write('enter each part of the question that was asked if no question asked, type \'skip\':'), nl,
 				   write('to see what is in the database, type \'print\''), nl,
+				   checkwin,
                    read(Q0),
 				   read_data(X, L, Q0),
 				   checkall_has_card, !, %checks if we can say a player has a card
@@ -239,7 +259,7 @@ read_data(X, L, Q0) :-
 
 %different logic for player zero turn
 turn_logic(0, S, Q0, Q1, Q2, L) :- players_do_not_have_card(0, S, Q0, Q1, Q2, L), !,
-								   write('which card did you see?'), nl, %TODO - case where noone shows on our turn
+								   write('which card did you see? type \'none\' if no one shows'), nl, 
 								   read(Card),
                 				   set_q_all_rel(Card, S), !.
 turn_logic(X, S, Q0, Q1, Q2, L) :- players_do_not_have_card(X, S, Q0, Q1, Q2, L), !,
@@ -400,7 +420,7 @@ printdatabase :- printpossible,
 				 printfinal(X).	
 
 %prints a list
-printlist([]) :- !.
+printlist([]) :- nl, !.
 printlist([H | T]) :-
 	write(H), write(', '),
 	printlist(T).
