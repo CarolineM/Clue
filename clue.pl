@@ -113,7 +113,6 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 %TODO - suggestion on finding out if player x has y card
 %TODO - prompt on 3 left per category
 %TODO - add cards per player and then fill does_not_have at max cards
-%TODO - either fix or remove probability
 
 %game playing predicates
 %---------------------------------------------------------
@@ -459,7 +458,6 @@ checkoneleft :- !.
 %------------------------------------
 %prints the entire database
 printdatabase :- printpossible,
-				% printprobable,
 				 write('Player info:'), nl,
 				 write('***************'), nl,
 				 printplayerinfo, nl,
@@ -476,10 +474,6 @@ printfinal([]) :- !.
 printfinal(L) :- write('ATTENTION - the following cards are part of the answer:'), nl,
 				 printlist(L), !.
 
-printprobable :- 
-	write('Probability scores:'), nl,
-	high_prob_ans(Result), %TODO this is wrong because it is not filtering known cards
-	printlist(Result), !.
 
 
 %prints the possible options for an accusation
@@ -526,76 +520,8 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('has one of each list:---------| '),
 				 player_has_one_of(P, L),
 				 printlist(L),nl,
-				 write('And probably does not have----| '),
-				 common_questions(P, Y),
-				 printlist(Y), nl,
 				 write('And asked about:--------------| '),
 				 questions_about(P, Q),
 				 printlist(Q), nl, !.
-
-
-%helpers
-%-----------------------------------------------------------
-
-%filters items in a list based on if they are possible solutions
-filter_relevant([], []) :- !.
-filter_relevant([H | T], [H | Result]) :- room(H), !,
-								          filter_relevant(T, Result).
-filter_relevant([H | T], [H | Result]) :- weapon(H), !,
-								          filter_relevant(T, Result).
-filter_relevant([H | T], [H | Result]) :- suspect(H), !,
-								          filter_relevant(T, Result).
-filter_relevant([_ | T], Result) :- filter_relevant(T, Result).
-
-%filters rooms out of a list
-filter_room([], []) :- !.
-filter_room([H | T], Result) :- room(H), !,
-								filter_room(T, Result).
-filter_room([H | T], [H | Result]) :- filter_room(T, Result).
-
-%returns a list of things that a player asked about more than once 
-%that are possible solutions. ignores rooms because asking about a 
-%room depends on board position
-common_questions(P, Result) :- questions_about(P, X),
-							   filter_relevant(X, Y),
-							   filter_room(Y, Z),
-                               list_dups(Z, Result).
-
-%lists duplicate items in a list
-%there will be an entry in the list for every item after it appears once
-list_dups([], []) :- !.
-list_dups([H | T], [H | Result]) :- member(H, T), !,
-									list_dups(T, Result).
-list_dups([_ | T], Result) :- list_dups(T, Result).
-
-%returns a sorted list of tuples with a possible [answer, score]
-high_prob_ans(Result) :- players(Y), !,
-						 all_common_q(Y, R),
-						 filter_relevant(R, R1),
-						 build_prob_tuples(R1, R1, R2),
-						 sort(R2, Result).
-
-%returns a list of the questions aked by all players. Ignores rooms.
-all_common_q([], []) :- !.
-all_common_q([H | T], Result) :- questions_about(H, X), !,
-								 filter_room(X, R),
-								 all_common_q(T, R2),
-								 append(R, R2, Result).
-
-%builds a list of tuples of the form [answer, prob].
-build_prob_tuples([], _, []) :- !.
-build_prob_tuples([H | T], L, [[H, Count] | Result]) :- occurrences(L, H, Count), !,
-														build_prob_tuples(T, L, Result).
-										 
-
-%counts the number of occurences of a value in a list
-occurrences(List, Value, Count) :- occurrences(List, Value, 0, Count).
-occurrences([], _, Count, Count).
-occurrences([X | Xs], Value, Acc, Count) :- X == Value, !,
-										    NAcc is Acc + 1, !,
-										    occurrences(Xs, Value, NAcc, Count).
-occurrences([_ | Xs], Value, Acc, Count) :- occurrences(Xs, Value, Acc, Count).
-
-
 
 
