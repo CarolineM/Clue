@@ -45,7 +45,7 @@ cards(X) :- findall(X0, card(X0), X).
 %relationship of players to cards
 :- dynamic has_card/2.
 
-player_has_card(P, X) :- findall(X0, has_card(P, X0), X).
+player_has_card(P, X) :- findall(X0, has_card(P, card(X0)), X).
 
 %relationship of players to question parts
 :- dynamic asked_question/2.
@@ -110,8 +110,12 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 					append(R, S, X0),
 					append(X0, W, X).
 
-%TODO - add cards per player and then fill does_not_have at max cards
-%TODO - add shortcut to imput seen card
+
+%the number of cards a player has
+:- dynamic num_cards/2.
+
+
+%TODO - add shortcut to input seen card
 
 %game playing predicates
 %---------------------------------------------------------
@@ -141,6 +145,7 @@ endgame  :-  abolish(has_card/2),
              abolish(final_room/1),
              abolish(final_weapon/1),
              abolish(final_suspect/1),
+             abolish(num_cards/2),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
@@ -195,7 +200,7 @@ ask_cards :- write('how many cards do you have?'), nl,
 			 write('here is a list of possible cards:'), nl,
 			 printpossible,
 			 get_cards(X),
-			 setall_doesnothave.
+			 setall_doesnothave(0).
 ask_cards :- write('please enter a number'), nl,
 			 ask_cards.
 
@@ -209,13 +214,26 @@ get_cards(N) :- nl, write('enter a card:'), nl,
 get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
 
-%sets all the remaining cards to does_not_have for player 0
-setall_doesnothave :- all_possible(X),
-					  setall_doesnothave(X).
+%sets all the remaining cards to does_not_have for player
+setall_doesnothave(P) :- all_possible(X),
+					     setall_doesnothave(X, P).
 
-setall_doesnothave([]) :- !.
-setall_doesnothave([H | T]) :- add_does_not_have(0, H),
-							   setall_doesnothave(T). 
+setall_doesnothave([], _) :- !.
+setall_doesnothave([H | T], P) :- add_does_not_have(P, H),
+							      setall_doesnothave(T, P). 
+
+%checks if max cards is reached for all players
+check_maxcards :- players(P),
+				  check_maxcards(P).
+check_maxcards([]) :- !.
+check_maxcards([H | T]) :- reached_max(H),
+						   check_maxcards(T).
+
+reached_max(P) :- num_cards(P, X),
+				  player_has_card(P, Y),
+				  length(Y, X),
+				  setall_doesnothave(P), !.
+reached_max(_) :- !.
 
 
 %gets the starting player and starts the game loop
@@ -236,12 +254,15 @@ start_turn_rotation :- write('that is not a valid player. here is a list of play
 turn_loop(X, L) :- final_answers(A),
 				   printfinal(A),	
 				   write('it is player '), write(X), write('s turn'), nl,
+				   write('******************************************************'), nl,
 				   write('enter each part of the question that was asked if no question asked, type \'skip\':'), nl,
 				   write('to see what is in the database, type \'print\''), nl,
-				   checkwin,
+				   write('to tell me how many cards a player has, type \'addcards\''), nl,
+				   write('******************************************************'), nl,
                    read(Q0),
 				   read_data(X, L, Q0),
-				   checkall_has_card, !, %checks if we can say a player has a card
+				   check_maxcards,
+				   checkall_has_card, !, 
 				   all_possible(C),
 				   check_all_noonehas(C), !,
 				   checkoneleft, !,
@@ -249,6 +270,7 @@ turn_loop(X, L) :- final_answers(A),
 				   prompt_suspect,
 				   prompt_weapon,
 				   check_all_onehas(C),
+				   checkwin,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L).
@@ -266,6 +288,7 @@ turn_loop(X, L , 'print') :- turn_loop(X, L).
 
 read_data(_, _, 'skip').
 read_data(X, L, 'print') :- printdatabase, turn_loop(X, L).
+read_data(X, L, 'addcards') :- addcards, turn_loop(X, L).
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
@@ -315,6 +338,18 @@ cycle_players([H | T], Q0, Q1, Q2) :- add_does_not_have(H, Q0),
 
 %Database modifiers
 %-----------------------------------
+
+%add cards for a player 
+addcards :- write('which player?'), nl,
+			read(P),
+			player(P),
+			write('how many cards do they have?'), nl,
+			read(Nc),
+			integer(Nc),
+			assert(num_cards(P, Nc)),
+			write(P), write(' has '), write(Nc), write(' cards has been recorded.'), nl, !.
+addcards :- write('operation failed. please try again.'), !.
+
 
 %possible answers
 possible(X) :- room(X).
@@ -422,7 +457,6 @@ check_all_hasoneof([X | _], C, P) :- player_does_not_have(P, Nh),
 									 subtract(X, Nh, Y),
 									 subtract(Y, C, [H | T]),
 					 				 length([H | T], Len),
-					 				 write([H|T]), nl,
 					 				 Len =:= 1, !,
 					 				 write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
 					 				 write('It is being added to the database.'), nl,
