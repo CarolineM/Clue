@@ -114,8 +114,12 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 %the number of cards a player has
 :- dynamic num_cards/2.
 
+add_num_cards(P, _) :- num_cards(P, _), 
+					   write('no new information was added because the number is already set'), nl, fail, !.
+add_num_cards(P, N) :- assert(num_cards(P, N)), !.
 
-%TODO - add shortcut to input seen card
+player_num_cards(P, X) :- findall(X0, num_cards(P, X0), X).
+
 
 %game playing predicates
 %---------------------------------------------------------
@@ -258,6 +262,7 @@ turn_loop(X, L) :- final_answers(A),
 				   write('enter each part of the question that was asked if no question asked, type \'skip\':'), nl,
 				   write('to see what is in the database, type \'print\''), nl,
 				   write('to tell me how many cards a player has, type \'addcards\''), nl,
+				   write('if you see someone\'s card, you can add it to the database by typing \'sawcard\''), nl,
 				   write('******************************************************'), nl,
                    read(Q0),
 				   read_data(X, L, Q0),
@@ -275,11 +280,12 @@ turn_loop(X, L) :- final_answers(A),
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L).
 
-turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
+turn_loop(_, _) :- write('there was a problem with your input.'), nl,
                    write('do you want to exit? y/n'), nl,
                    read(A),
                    A == 'y', !,
-				   endgame.
+                   write('restarting...'), nl,
+				   endgame, startgame.
 
 turn_loop(X, L) :- turn_loop(X, L).
 
@@ -289,6 +295,7 @@ turn_loop(X, L , 'print') :- turn_loop(X, L).
 read_data(_, _, 'skip').
 read_data(X, L, 'print') :- printdatabase, turn_loop(X, L).
 read_data(X, L, 'addcards') :- addcards, turn_loop(X, L).
+read_data(X, L, 'sawcard') :- sawcard, turn_loop(X, L).
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
@@ -339,16 +346,27 @@ cycle_players([H | T], Q0, Q1, Q2) :- add_does_not_have(H, Q0),
 %Database modifiers
 %-----------------------------------
 
-%add cards for a player 
+%add number of cards for a player 
 addcards :- write('which player?'), nl,
 			read(P),
 			player(P),
 			write('how many cards do they have?'), nl,
 			read(Nc),
 			integer(Nc),
-			assert(num_cards(P, Nc)),
-			write(P), write(' has '), write(Nc), write(' cards has been recorded.'), nl, !.
-addcards :- write('operation failed. please try again.'), !.
+			add_num_cards(P, Nc),
+			write('player '), write(P), write(' has '), write(Nc), write(' cards has been recorded.'), nl, !.
+addcards :- write('operation failed. please try again.'), nl, !.
+
+%add card for a player 
+sawcard :- write('which player?'), nl,
+			read(P),
+			player(P),
+			write('which card?'), nl,
+			read(Nc),
+			possible(Nc),
+			setcard(P, Nc),
+			write('player '), write(P), write(' has '), write(Nc), write(' has been recorded.'), nl, !.
+sawcard :- write('operation failed. please try again.'), nl, !.
 
 
 %possible answers
@@ -495,10 +513,10 @@ checkoneleft :- !.
 %print functions
 %------------------------------------
 %prints the entire database
-printdatabase :- printpossible,
-				 write('Player info:'), nl,
+printdatabase :- write('Player info:'), nl,
 				 write('***************'), nl,
 				 printplayerinfo, nl,
+				 printpossible,
 				 final_answers(X),
 				 printfinal(X).	
 
@@ -560,7 +578,10 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 printlist(L),nl,
 				 write('And asked about:--------------| '),
 				 questions_about(P, Q),
-				 printlist(Q), nl, !.
+				 printlist(Q), nl, 
+				 write('has this many cards:----------| '),
+				 player_num_cards(P, Nc),
+				 write(Nc), nl, !.
 
 %prompts the user to find out if player x has y card 
 check_one_has(X) :- possible(X), !,
