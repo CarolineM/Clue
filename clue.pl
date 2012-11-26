@@ -110,7 +110,6 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 					append(R, S, X0),
 					append(X0, W, X).
 
-%TODO - suggestion on finding out if player x has y card
 %TODO - prompt on 3 left per category
 %TODO - add cards per player and then fill does_not_have at max cards
 
@@ -218,6 +217,7 @@ setall_doesnothave([]) :- !.
 setall_doesnothave([H | T]) :- add_does_not_have(0, H),
 							   setall_doesnothave(T). 
 
+
 %gets the starting player and starts the game loop
 start_turn_rotation :- write('who has the first turn?'), nl,
 					   write('turns must move clockwise, in order'), nl,
@@ -245,6 +245,7 @@ turn_loop(X, L) :- final_answers(A),
 				   all_possible(C),
 				   check_all_noonehas(C), !,
 				   checkoneleft, !,
+				   check_all_onehas(C),
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L).
@@ -523,5 +524,22 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('And asked about:--------------| '),
 				 questions_about(P, Q),
 				 printlist(Q), nl, !.
+
+%prompts the user to find out if player x has y card 
+check_one_has(X) :- possible(X), !,
+                	aggregate_all(count, player(_), Cp),
+                 	aggregate_all(count, does_not_have(_, X), C), 
+                 	NC is C + 1,
+                 	NC =:= Cp,
+                 	player(P),
+                 	not(does_not_have(P, X)),
+                 	write('I need to know if player '), write(P), write(' has '), write(X),
+                 	write(' can you find out?'), nl.
+
+check_all_onehas([]) :- !.
+check_all_onehas([H | T]) :- check_one_has(H), !,
+							 check_all_onehas(T).
+check_all_onehas([H | T]) :- not(check_one_has(H)), !,
+							 check_all_onehas(T).
 
 
