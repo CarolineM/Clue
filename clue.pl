@@ -110,8 +110,8 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 					append(R, S, X0),
 					append(X0, W, X).
 
-%TODO - prompt on 3 left per category
 %TODO - add cards per player and then fill does_not_have at max cards
+%TODO - add shortcut to imput seen card
 
 %game playing predicates
 %---------------------------------------------------------
@@ -245,6 +245,9 @@ turn_loop(X, L) :- final_answers(A),
 				   all_possible(C),
 				   check_all_noonehas(C), !,
 				   checkoneleft, !,
+				   prompt_room,
+				   prompt_suspect,
+				   prompt_weapon,
 				   check_all_onehas(C),
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
@@ -542,4 +545,22 @@ check_all_onehas([H | T]) :- check_one_has(H), !,
 check_all_onehas([H | T]) :- not(check_one_has(H)), !,
 							 check_all_onehas(T).
 
-
+%promps the user when only two are left in category
+prompt_room :- not(final_room(_)),
+			   rooms(R),
+			   length(R, L),
+			   L =:= 2,
+			   write('the room is one of '), write(R), write(' try to find out which'), nl, !.
+prompt_room :- !.
+prompt_weapon :- not(final_weapon(_)),
+			   	 weapons(R),
+			   	 length(R, L),
+			     L =:= 2,
+			     write('the weapon is one of '), write(R), write(' try to find out which'), nl, !.
+prompt_weapon :- !.
+prompt_suspect :- not(final_suspect(_)),
+			      suspects(R),
+			      length(R, L),
+			      L =:= 2,
+			      write('the suspect is one of '), write(R), write(' try to find out which'), nl, !.
+prompt_suspect :- !.
