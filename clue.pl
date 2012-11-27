@@ -45,6 +45,8 @@ cards(X) :- findall(X0, card(X0), X).
 %relationship of players to cards
 :- dynamic has_card/2.
 
+player_has_card(P, X) :- findall(X0, has_card(P, card(X0)), X).
+
 %relationship of players to question parts
 :- dynamic asked_question/2.
 
@@ -85,26 +87,53 @@ check_all_noonehas([H | T]) :- check_no_one_has(H), !,
 check_all_noonehas([H | T]) :- not(check_no_one_has(H)), !,
 							   check_all_noonehas(T).
 
-add_no_one_has(X) :- final_answer(X), !.
+add_no_one_has(X) :- add_final_answer(X), !.
 add_no_one_has(X) :- add_final_answer(X),
 					 write('one part of the final answer is: '), write(X), nl, !.
 
 
 %when we know for sure a card is part of the answer
-:- dynamic final_answer/1.
+:- dynamic final_room/1.
+:- dynamic final_weapon/1.
+:- dynamic final_suspect/1.
 
-add_final_answer(X) :- final_answer(X), !.
-add_final_answer(X) :- assert(final_answer(X)), !.
+add_final_answer(X) :- final_room(X), !.
+add_final_answer(X) :- room(X), !, assert(final_room(X)), !.
+add_final_answer(X) :- final_weapon(X), !.
+add_final_answer(X) :- weapon(X), !, assert(final_weapon(X)), !.
+add_final_answer(X) :- final_suspect(X), !.
+add_final_answer(X) :- suspect(X), !, assert(final_suspect(X)), !.
 
-final_answers(X) :- findall(X0, final_answer(X0), X).
+final_answers(X) :- findall(R0, final_room(R0), R), 
+					findall(S0, final_suspect(S0), S),
+					findall(W0, final_weapon(W0), W),
+					append(R, S, X0),
+					append(X0, W, X).
 
 
-%TODO 
-%checkwin function
+%the number of cards a player has
+:- dynamic num_cards/2.
+
+add_num_cards(P, _) :- num_cards(P, _), 
+					   write('no new information was added because the number is already set'), nl, fail, !.
+add_num_cards(P, N) :- assert(num_cards(P, N)), !.
+
+player_num_cards(P, X) :- findall(X0, num_cards(P, X0), X).
 
 
 %game playing predicates
 %---------------------------------------------------------
+checkwin :- final_answers(X),
+			length(X, L),
+			L =:= 3,
+			final_room(R),
+			final_suspect(S),
+			final_weapon(W),
+			write('*************************************************'), nl,
+			write(S), write(' did it, in the '), write(R), write(' with the '), write(W), write('!'), nl,
+			write('*************************************************'), nl.
+
+checkwin :- !.	
 
 %resets the database
 endgame  :-  abolish(has_card/2),
@@ -117,7 +146,10 @@ endgame  :-  abolish(has_card/2),
 			 abolish(asked_question/2),
 			 abolish(does_not_have/2),
              abolish(has_one_of/2),
-             abolish(final_answer/1),
+             abolish(final_room/1),
+             abolish(final_weapon/1),
+             abolish(final_suspect/1),
+             abolish(num_cards/2),
 			 [clue]. % need to reload file.
 
 %builds the database and starts the game sequence
@@ -172,7 +204,8 @@ ask_cards :- write('how many cards do you have?'), nl,
 			 number(X), !,
 			 write('here is a list of possible cards:'), nl,
 			 printpossible,
-			 get_cards(X).
+			 get_cards(X),
+			 setall_doesnothave(0).
 ask_cards :- write('please enter a number'), nl,
 			 ask_cards.
 
@@ -185,6 +218,28 @@ get_cards(N) :- nl, write('enter a card:'), nl,
 			    get_cards(Nn).
 get_cards(N) :- write('that was not a possible card.'), nl,
 				get_cards(N).
+
+%sets all the remaining cards to does_not_have for player
+setall_doesnothave(P) :- all_possible(X),
+					     setall_doesnothave(X, P).
+
+setall_doesnothave([], _) :- !.
+setall_doesnothave([H | T], P) :- add_does_not_have(P, H),
+							      setall_doesnothave(T, P). 
+
+%checks if max cards is reached for all players
+check_maxcards :- players(P),
+				  check_maxcards(P).
+check_maxcards([]) :- !.
+check_maxcards([H | T]) :- reached_max(H),
+						   check_maxcards(T).
+
+reached_max(P) :- num_cards(P, X),
+				  player_has_card(P, Y),
+				  length(Y, X),
+				  setall_doesnothave(P), !.
+reached_max(_) :- !.
+
 
 %gets the starting player and starts the game loop
 start_turn_rotation :- write('who has the first turn?'), nl,
@@ -204,28 +259,44 @@ start_turn_rotation :- write('that is not a valid player. here is a list of play
 turn_loop(X, L) :- final_answers(A),
 				   printfinal(A),	
 				   write('it is player '), write(X), write('s turn'), nl,
+				   write('******************************************************'), nl,
 				   write('enter each part of the question that was asked if no question asked, type \'skip\':'), nl,
 				   write('to see what is in the database, type \'print\''), nl,
+				   write('to tell me how many cards a player has, type \'addcards\''), nl,
+				   write('if you see someone\'s card, you can add it to the database by typing \'sawcard\''), nl,
+				   write('******************************************************'), nl,
                    read(Q0),
-				   read_data(X,L, Q0),
-				   checkall_has_card, !, %checks if we can say a player has a card
+				   read_data(X, L, Q0),
+				   check_maxcards,
+				   checkall_has_card, !, 
 				   all_possible(C),
 				   check_all_noonehas(C), !,
+				   checkoneleft, !,
+				   prompt_room,
+				   prompt_suspect,
+				   prompt_weapon,
+				   check_all_onehas(C),
+				   checkwin,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L).
 
-turn_loop(_, _) :- write('there was a problem with your input.'), nl, %TODO it is kind of annoying to have to reenter everything
+turn_loop(_, _) :- write('there was a problem with your input.'), nl,
                    write('do you want to exit? y/n'), nl,
                    read(A),
                    A == 'y', !,
-				   endgame.
+                   write('restarting...'), nl,
+				   endgame, startgame.
 
 turn_loop(X, L) :- turn_loop(X, L).
 
+turn_loop(X, L , 'print') :- turn_loop(X, L).
+
 
 read_data(_, _, 'skip').
-read_data(_, _, 'print') :- printdatabase. %TODO - bug here. this is skipping the turn.
+read_data(X, L, 'print') :- printdatabase, turn_loop(X, L).
+read_data(X, L, 'addcards') :- addcards, turn_loop(X, L).
+read_data(X, L, 'sawcard') :- sawcard, turn_loop(X, L).
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
@@ -238,7 +309,7 @@ read_data(X, L, Q0) :-
 
 %different logic for player zero turn
 turn_logic(0, S, Q0, Q1, Q2, L) :- players_do_not_have_card(0, S, Q0, Q1, Q2, L), !,
-								   write('which card did you see?'), nl, %TODO - case where noone shows on our turn
+								   write('which card did you see? type \'none\' if no one shows'), nl, 
 								   read(Card),
                 				   set_q_all_rel(Card, S), !.
 turn_logic(X, S, Q0, Q1, Q2, L) :- players_do_not_have_card(X, S, Q0, Q1, Q2, L), !,
@@ -251,11 +322,9 @@ players_do_not_have_card(S, E, C1, C2, C3, L):-
             Sx is S + 1,
             K is mod(Sx, L),
             K \= E , !,
-            write('before add..'), nl,
             add_does_not_have(K, C1),
             add_does_not_have(K, C2),
             add_does_not_have(K, C3),
-            write('added does not have'), nl,
             players_do_not_have_card(K, E, C1, C2, C3, L).
 
 players_do_not_have_card(S, E, _,_,_,L):-
@@ -277,6 +346,29 @@ cycle_players([H | T], Q0, Q1, Q2) :- add_does_not_have(H, Q0),
 
 %Database modifiers
 %-----------------------------------
+
+%add number of cards for a player 
+addcards :- write('which player?'), nl,
+			read(P),
+			player(P),
+			write('how many cards do they have?'), nl,
+			read(Nc),
+			integer(Nc),
+			add_num_cards(P, Nc),
+			write('player '), write(P), write(' has '), write(Nc), write(' cards has been recorded.'), nl, !.
+addcards :- write('operation failed. please try again.'), nl, !.
+
+%add card for a player 
+sawcard :- write('which player?'), nl,
+			read(P),
+			player(P),
+			write('which card?'), nl,
+			read(Nc),
+			possible(Nc),
+			setcard(P, Nc),
+			write('player '), write(P), write(' has '), write(Nc), write(' has been recorded.'), nl, !.
+sawcard :- write('operation failed. please try again.'), nl, !.
+
 
 %possible answers
 possible(X) :- room(X).
@@ -375,31 +467,62 @@ check_has_card(P) :- player(P),
 
 %helper to recurse through the hasoneof relationships. stops if a matching sequence is found.
 check_all_hasoneof([], _, _) :- !.
+check_all_hasoneof([X | T], C, P) :- player_has_card(P, Y),
+									 subtract(X, Y, Z),
+									 length(Z, L),
+									 L < 3, !,
+									 check_all_hasoneof(T, C, P).
 check_all_hasoneof([X | _], C, P) :- player_does_not_have(P, Nh),
 									 subtract(X, Nh, Y),
 									 subtract(Y, C, [H | T]),
 					 				 length([H | T], Len),
-					 				 write([H|T]), nl,
 					 				 Len =:= 1, !,
 					 				 write('I have deduced that player '), write(P), write(' has this card: '), write(H), nl,
 					 				 write('It is being added to the database.'), nl,
 					 				 setcard(P, H).
 check_all_hasoneof([_ | Xs], C, P) :- check_all_hasoneof(Xs, C, P).
 
+checkoneleft :- not(final_weapon(_)),
+				weapons(W),
+				length(W, L),
+				L =:= 1,
+				nth0(0, W, I),
+				add_final_answer(I),
+				write('one part of the final answer is: '), write(I), nl.
+
+checkoneleft :- not(final_room(_)),
+				rooms(R),
+				length(R, L),
+				L =:= 1,
+				nth0(0, R, I),
+				add_final_answer(I),
+				write('one part of the final answer is: '), write(I), nl.
+
+checkoneleft :- not(final_suspect(_)),
+				suspects(S),
+				length(S, L),
+				L =:= 1,
+				nth0(0, S, I),
+				add_final_answer(I),
+				write('one part of the final answer is: '), write(I), nl.
+
+checkoneleft :- !.
+
+
+
 
 %print functions
 %------------------------------------
 %prints the entire database
-printdatabase :- printpossible,
-				% printprobable,
-				 write('Player info:'), nl,
+printdatabase :- write('Player info:'), nl,
 				 write('***************'), nl,
 				 printplayerinfo, nl,
+				 printpossible,
 				 final_answers(X),
 				 printfinal(X).	
 
 %prints a list
-printlist([]) :- !.
+printlist([]) :- nl, !.
 printlist([H | T]) :-
 	write(H), write(', '),
 	printlist(T).
@@ -408,10 +531,6 @@ printfinal([]) :- !.
 printfinal(L) :- write('ATTENTION - the following cards are part of the answer:'), nl,
 				 printlist(L), !.
 
-printprobable :- 
-	write('Probability scores:'), nl,
-	high_prob_ans(Result), %TODO this is wrong because it is not filtering known cards
-	printlist(Result), !.
 
 
 %prints the possible options for an accusation
@@ -458,76 +577,46 @@ printinfo(P) :- findall(X0, has_card(P, X0), X),
 				 write('has one of each list:---------| '),
 				 player_has_one_of(P, L),
 				 printlist(L),nl,
-				 write('And probably does not have----| '),
-				 common_questions(P, Y),
-				 printlist(Y), nl,
 				 write('And asked about:--------------| '),
 				 questions_about(P, Q),
-				 printlist(Q), nl, !.
+				 printlist(Q), nl, 
+				 write('has this many cards:----------| '),
+				 player_num_cards(P, Nc),
+				 write(Nc), nl, !.
 
+%prompts the user to find out if player x has y card 
+check_one_has(X) :- possible(X), !,
+                	aggregate_all(count, player(_), Cp),
+                 	aggregate_all(count, does_not_have(_, X), C), 
+                 	NC is C + 1,
+                 	NC =:= Cp,
+                 	player(P),
+                 	not(does_not_have(P, X)),
+                 	write('I need to know if player '), write(P), write(' has '), write(X),
+                 	write(' can you find out?'), nl.
 
-%helpers
-%-----------------------------------------------------------
+check_all_onehas([]) :- !.
+check_all_onehas([H | T]) :- check_one_has(H), !,
+							 check_all_onehas(T).
+check_all_onehas([H | T]) :- not(check_one_has(H)), !,
+							 check_all_onehas(T).
 
-%filters items in a list based on if they are possible solutions
-filter_relevant([], []) :- !.
-filter_relevant([H | T], [H | Result]) :- room(H), !,
-								          filter_relevant(T, Result).
-filter_relevant([H | T], [H | Result]) :- weapon(H), !,
-								          filter_relevant(T, Result).
-filter_relevant([H | T], [H | Result]) :- suspect(H), !,
-								          filter_relevant(T, Result).
-filter_relevant([_ | T], Result) :- filter_relevant(T, Result).
-
-%filters rooms out of a list
-filter_room([], []) :- !.
-filter_room([H | T], Result) :- room(H), !,
-								filter_room(T, Result).
-filter_room([H | T], [H | Result]) :- filter_room(T, Result).
-
-%returns a list of things that a player asked about more than once 
-%that are possible solutions. ignores rooms because asking about a 
-%room depends on board position
-common_questions(P, Result) :- questions_about(P, X),
-							   filter_relevant(X, Y),
-							   filter_room(Y, Z),
-                               list_dups(Z, Result).
-
-%lists duplicate items in a list
-%there will be an entry in the list for every item after it appears once
-list_dups([], []) :- !.
-list_dups([H | T], [H | Result]) :- member(H, T), !,
-									list_dups(T, Result).
-list_dups([_ | T], Result) :- list_dups(T, Result).
-
-%returns a sorted list of tuples with a possible [answer, score]
-high_prob_ans(Result) :- players(Y), !,
-						 all_common_q(Y, R),
-						 filter_relevant(R, R1),
-						 build_prob_tuples(R1, R1, R2),
-						 sort(R2, Result).
-
-%returns a list of the questions aked by all players. Ignores rooms.
-all_common_q([], []) :- !.
-all_common_q([H | T], Result) :- questions_about(H, X), !,
-								 filter_room(X, R),
-								 all_common_q(T, R2),
-								 append(R, R2, Result).
-
-%builds a list of tuples of the form [answer, prob].
-build_prob_tuples([], _, []) :- !.
-build_prob_tuples([H | T], L, [[H, Count] | Result]) :- occurrences(L, H, Count), !,
-														build_prob_tuples(T, L, Result).
-										 
-
-%counts the number of occurences of a value in a list
-occurrences(List, Value, Count) :- occurrences(List, Value, 0, Count).
-occurrences([], _, Count, Count).
-occurrences([X | Xs], Value, Acc, Count) :- X == Value, !,
-										    NAcc is Acc + 1, !,
-										    occurrences(Xs, Value, NAcc, Count).
-occurrences([_ | Xs], Value, Acc, Count) :- occurrences(Xs, Value, Acc, Count).
-
-
-
-
+%promps the user when only two are left in category
+prompt_room :- not(final_room(_)),
+			   rooms(R),
+			   length(R, L),
+			   L =:= 2,
+			   write('the room is one of '), write(R), write(' try to find out which'), nl, !.
+prompt_room :- !.
+prompt_weapon :- not(final_weapon(_)),
+			   	 weapons(R),
+			   	 length(R, L),
+			     L =:= 2,
+			     write('the weapon is one of '), write(R), write(' try to find out which'), nl, !.
+prompt_weapon :- !.
+prompt_suspect :- not(final_suspect(_)),
+			      suspects(R),
+			      length(R, L),
+			      L =:= 2,
+			      write('the suspect is one of '), write(R), write(' try to find out which'), nl, !.
+prompt_suspect :- !.
