@@ -112,8 +112,9 @@ final_answers(X) :- findall(R0, final_room(R0), R),
 :- dynamic num_cards/2.
 
 add_num_cards(P, _) :- num_cards(P, _), 
-					   write('no new information was added because the number is already set'), nl, fail, !.
-add_num_cards(P, N) :- assert(num_cards(P, N)), !.
+					   write('no new information was added because the number is already set'), nl, !.
+add_num_cards(P, N) :- assert(num_cards(P, N)), !,
+					   write('player '), write(P), write(' has '), write(N), write(' has been recorded.'), nl, !.
 
 player_num_cards(P, X) :- findall(X0, num_cards(P, X0), X).
 
@@ -172,7 +173,7 @@ startgame :- add_suspect(mustard),
 			 add_room(ballroom),
 			 add_room(conservatory),
 			 opening_sequence, !,
-			 ask_cards, 
+			 ask_cards, !,
 			 start_turn_rotation, !.
 
 %loops on fail
@@ -263,18 +264,18 @@ turn_loop(X, L) :- final_answers(A),
 				   write('if you see someone\'s card, you can add it to the database by typing \'sawcard\''), nl,
 				   write('type \'quit\' to end the game.'), nl,
 				   write('******************************************************'), nl,
-                   read(Q0),
-				   read_data(X, L, Q0),
-				   check_maxcards,
-				   checkall_has_card, !, 
+                   read(Q0), !,
+				   read_data(X, L, Q0), !,
+				   check_maxcards, !,
+				   checkall_has_card, 
 				   all_possible(C),
-				   check_all_noonehas(C), !,
-				   checkoneleft, !,
+				   check_all_noonehas(C),
+				   checkoneleft, 
 				   prompt_room,
 				   prompt_suspect,
 				   prompt_weapon,
 				   check_all_onehas(C),
-				   checkwin,
+				   checkwin, !,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
 				   turn_loop(Mx, L), !.
@@ -284,14 +285,12 @@ turn_loop(_, _) :- write('there was a problem with your input.'), nl, fail.
 
 turn_loop(X, L) :- turn_loop(X, L).
 
-turn_loop(X, L , 'print') :- turn_loop(X, L).
-
 
 read_data(_, _, 'skip').
 read_data(X, L, 'print') :- printdatabase, turn_loop(X, L).
 read_data(X, L, 'addcards') :- addcards, turn_loop(X, L).
 read_data(X, L, 'sawcard') :- sawcard, turn_loop(X, L).
-read_data(_, _, 'quit') :- write('ending game...'), nl, endgame, halt.
+read_data(_, _, 'quit') :- write('ending game...'), nl, endgame, fail.
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
@@ -349,8 +348,7 @@ addcards :- write('which player?'), nl,
 			write('how many cards do they have?'), nl,
 			read(Nc),
 			integer(Nc),
-			add_num_cards(P, Nc),
-			write('player '), write(P), write(' has '), write(Nc), write(' cards has been recorded.'), nl, !.
+			add_num_cards(P, Nc), !.
 addcards :- write('operation failed. please try again.'), nl, !.
 
 %add card for a player 
@@ -360,8 +358,7 @@ sawcard :- write('which player?'), nl,
 			write('which card?'), nl,
 			read(Nc),
 			possible(Nc),
-			setcard(P, Nc),
-			write('player '), write(P), write(' has '), write(Nc), write(' has been recorded.'), nl, !.
+			setcard(P, Nc).
 sawcard :- write('operation failed. please try again.'), nl, !.
 
 
