@@ -66,9 +66,6 @@ player_has_one_of(P, X) :- findall(X0, has_one_of(P, X0), X).
 % 'does not have' predicate based on who doesn't show
 :- dynamic does_not_have/2.
 
-% this was causing duplicate entries. just using add_does_not_have everytime is good enough.
-%does_not_have(P, C) :- player(K), player(P),has_card(K, C), P \=K. 
-
 add_does_not_have(P, C) :- player(P), all(C), does_not_have(P, C), !.
 add_does_not_have(P, C) :- player(P), all(C), !, assert(does_not_have(P, C)), !.
 
@@ -264,6 +261,7 @@ turn_loop(X, L) :- final_answers(A),
 				   write('to see what is in the database, type \'print\''), nl,
 				   write('to tell me how many cards a player has, type \'addcards\''), nl,
 				   write('if you see someone\'s card, you can add it to the database by typing \'sawcard\''), nl,
+				   write('type \'quit\' to end the game.'), nl,
 				   write('******************************************************'), nl,
                    read(Q0),
 				   read_data(X, L, Q0),
@@ -279,14 +277,10 @@ turn_loop(X, L) :- final_answers(A),
 				   checkwin,
 				   Nx is X + 1, !,
 				   Mx is mod(Nx, L), !,
-				   turn_loop(Mx, L).
+				   turn_loop(Mx, L), !.
 
-turn_loop(_, _) :- write('there was a problem with your input.'), nl,
-                   write('do you want to exit? y/n'), nl,
-                   read(A),
-                   A == 'y', !,
-                   write('restarting...'), nl,
-				   endgame, startgame.
+turn_loop(_, _) :- write('there was a problem with your input.'), nl, fail.
+
 
 turn_loop(X, L) :- turn_loop(X, L).
 
@@ -297,6 +291,7 @@ read_data(_, _, 'skip').
 read_data(X, L, 'print') :- printdatabase, turn_loop(X, L).
 read_data(X, L, 'addcards') :- addcards, turn_loop(X, L).
 read_data(X, L, 'sawcard') :- sawcard, turn_loop(X, L).
+read_data(_, _, 'quit') :- write('ending game...'), nl, endgame, halt.
 read_data(X, L, Q0) :- 
                 all(Q0),
                 read(Q1),
